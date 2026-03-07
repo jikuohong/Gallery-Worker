@@ -232,7 +232,7 @@ html.dark #toast.inf{background:#1e3a8a;color:#93c5fd;border-color:#1d4ed8}
 
 <!-- TOPBAR -->
 <div class="topbar">
-  <a href="https://text2img.kont.us.ci" target="_blank" style="display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--muted);text-decoration:none;padding:5px 10px;border-radius:8px;border:1px solid var(--border);transition:all .2s" onmouseover="this.style.color='var(--a1)';this.style.borderColor='var(--a1)'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">
+  <a href="https://your-text2img.workers.dev" target="_blank" style="display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--muted);text-decoration:none;padding:5px 10px;border-radius:8px;border:1px solid var(--border);transition:all .2s" onmouseover="this.style.color='var(--a1)';this.style.borderColor='var(--a1)'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">
     <i class="fa-solid fa-wand-magic-sparkles"></i> 文生图
   </a>
   <span class="tb-logo" style="margin-left:12px"><i class="fa-solid fa-images" style="margin-right:7px"></i>AI 图库</span>
@@ -270,7 +270,7 @@ html.dark #toast.inf{background:#1e3a8a;color:#93c5fd;border-color:#1d4ed8}
 <div class="search-bar">
   <div class="search-wrap">
     <i class="fa-solid fa-magnifying-glass" id="searchIcon"></i>
-    <input type="search" id="searchInput" placeholder="        搜索提示词、标签、模型名称…">
+    <input type="search" id="searchInput" placeholder="  搜索提示词、标签、模型名称…">
   </div>
   <button class="btn bp" id="searchBtn"><i class="fa-solid fa-search"></i> 搜索</button>
 </div>
@@ -301,7 +301,7 @@ html.dark #toast.inf{background:#1e3a8a;color:#93c5fd;border-color:#1d4ed8}
     <!-- URL 导入面板 -->
     <div id="ipUrlPane">
       <div class="ip-sub">粘贴图床直链，每行一个 URL，支持批量导入（每次最多 20 张）</div>
-      <textarea class="ip-textarea" id="importUrls" placeholder="https://image.kont.us.ci/file/abc123.jpg&#10;https://image.kont.us.ci/file/def456.png&#10;..."></textarea>
+      <textarea class="ip-textarea" id="importUrls" placeholder="https://your-image-host.com/file/abc123.jpg&#10;https://your-image-host.com/file/def456.png&#10;..."></textarea>
       <div class="ip-actions">
         <button class="btn bp" id="importStartBtn"><i class="fa-solid fa-wand-magic-sparkles"></i> 开始导入 &amp; AI 分析</button>
         <button class="btn bg" id="importCloseBtn"><i class="fa-solid fa-xmark"></i> 关闭</button>
@@ -951,7 +951,7 @@ document.getElementById('localUploadBtn').addEventListener('click', async functi
       var form = new FormData();
       form.append('file', f, f.name);
       form.append('prompt', '');
-      form.append('imageHost', 'https://image.kont.us.ci');
+      form.append('imageHost', 'https://your-image-host.com');
 
       var res = await fetch(API_BASE + '/gallery/ingest', {
         method: 'POST',
