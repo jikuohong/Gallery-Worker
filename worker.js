@@ -12,7 +12,7 @@
  *   POST /gallery/save          保存一条图片记录（旧接口，保留兼容）
  *   GET  /gallery/search?q=xxx  搜索（按 prompt / 标签 / 模型）
  *   GET  /gallery/list?page=1   分页列表
- *   POST /gallery/import        手动导入（单张或批量）
+ *   POST /gallery/import          手动导入（单张或批量）
  *   DELETE /gallery/delete?id=xxx 删除一条记录
  *   GET  /                      返回管理页面 HTML
  */
@@ -44,6 +44,7 @@ body{font-family:var(--f);background:var(--bg);color:var(--text);min-height:100v
 .tb-right{display:flex;align-items:center;gap:10px;margin-left:auto}
 .total-badge{font-size:12px;color:var(--muted);background:var(--bg);border:1px solid var(--border);padding:3px 10px;border-radius:20px}
 
+/* ── 批量操作工具栏 ── */
 #batchBar{display:none;position:sticky;top:56px;z-index:29;background:var(--surface);border-bottom:1px solid var(--border);padding:8px 24px;align-items:center;gap:10px;box-shadow:var(--sh)}
 #batchBar.show{display:flex}
 .batch-info{font-size:13px;font-weight:600;color:var(--a1);min-width:80px}
@@ -52,6 +53,7 @@ body{font-family:var(--f);background:var(--bg);color:var(--text);min-height:100v
 .bd:hover{background:var(--bg);color:var(--text)}
 .bd.del:hover{background:#fee2e2;color:#991b1b;border-color:#fecaca}
 
+/* ── 卡片选择状态 ── */
 .select-mode .gcard{position:relative}
 .select-mode .gcard::after{content:'';position:absolute;inset:0;border-radius:var(--r);border:2px solid transparent;transition:all .15s;pointer-events:none}
 .select-mode .gcard.selected::after{border-color:var(--a1);background:rgba(29,155,240,.08)}
@@ -74,31 +76,37 @@ body{font-family:var(--f);background:var(--bg);color:var(--text);min-height:100v
 
 .grid-wrap{max-width:1200px;margin:20px auto 40px;padding:0 20px}
 
+/* ── 模式切换按钮 ── */
 .view-toggle{display:flex;gap:4px;background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:3px}
 .vt-btn{width:30px;height:28px;border:none;border-radius:6px;background:none;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;transition:all .2s}
 .vt-btn.active{background:var(--surface);color:var(--a1);box-shadow:0 1px 4px rgba(0,0,0,.1)}
 .vt-btn:hover:not(.active){color:var(--text)}
 
+/* ── 瀑布流模式（默认） ── */
 .gallery-grid{columns:4;column-gap:12px}
 @media(max-width:900px){.gallery-grid{columns:3}}
 @media(max-width:560px){.gallery-grid{columns:2}}
 .gallery-grid .gcard{break-inside:avoid;margin-bottom:12px}
 
+/* ── 大图模式 ── */
 .gallery-grid.mode-large{columns:2;column-gap:16px}
 @media(max-width:600px){.gallery-grid.mode-large{columns:1}}
 
+/* ── 列表模式 ── */
 .gallery-grid.mode-list{columns:unset;display:flex;flex-direction:column;gap:12px}
 .gallery-grid.mode-list .gcard{display:flex;flex-direction:row;break-inside:unset;margin-bottom:0}
 .gallery-grid.mode-list .gcard img{width:120px;height:120px;object-fit:cover;flex-shrink:0}
 .gallery-grid.mode-list .gcard-body{flex:1;padding:12px 14px;display:flex;flex-direction:column;justify-content:space-between}
 .gallery-grid.mode-list .gcard-prompt{-webkit-line-clamp:3}
 
+/* ── 时间轴模式 ── */
 .timeline-group{margin-bottom:28px}
 .tl-date{font-family:var(--fh);font-size:13px;font-weight:700;color:var(--muted);padding:4px 0 10px;border-bottom:1px solid var(--border);margin-bottom:12px;display:flex;align-items:center;gap:8px}
 .tl-date::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--grad);display:inline-block}
 .tl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
 .tl-grid .gcard{margin-bottom:0;break-inside:unset}
 
+/* ── 通用卡片样式 ── */
 .gcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);transition:transform .2s,box-shadow .2s;cursor:pointer}
 .gcard:hover{transform:translateY(-2px);box-shadow:var(--shl)}
 .gcard img{width:100%;display:block;background:var(--bg)}
@@ -110,16 +118,19 @@ body{font-family:var(--f);background:var(--bg);color:var(--text);min-height:100v
 .gcard-meta{font-size:10.5px;color:var(--muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .gcard-meta i{font-size:9px}
 
+/* ── Empty / loading ── */
 .state-box{text-align:center;padding:60px 20px;color:var(--muted)}
 .state-box i{font-size:40px;margin-bottom:12px;display:block;opacity:.35}
 .state-box p{font-size:14px}
 
+/* ── Pagination ── */
 .pagination{display:flex;justify-content:center;gap:8px;margin-top:24px}
 .pg-btn{min-width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;font-family:var(--f);font-weight:500}
 .pg-btn:hover{border-color:var(--a1);color:var(--a1)}
 .pg-btn.active{background:var(--grad);color:#fff;border-color:transparent;box-shadow:0 3px 10px rgba(29,155,240,.3)}
 .pg-btn:disabled{opacity:.4;cursor:not-allowed}
 
+/* ── Lightbox ── */
 #lb{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.92);backdrop-filter:blur(10px);display:none;align-items:flex-start;justify-content:center;padding:30px 16px;overflow-y:auto}
 #lb.show{display:flex}
 .lb-inner{background:var(--surface);border-radius:16px;max-width:760px;width:100%;box-shadow:var(--shl);overflow:hidden;position:relative;margin:auto}
@@ -135,6 +146,7 @@ body{font-family:var(--f);background:var(--bg);color:var(--text);min-height:100v
 .lb-close{position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:8px;background:rgba(0,0,0,.5);border:none;color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;transition:background .2s}
 .lb-close:hover{background:rgba(0,0,0,.75)}
 
+/* ── Login overlay ── */
 #loginOv{position:fixed;inset:0;z-index:100;background:rgba(16,19,28,.78);backdrop-filter:blur(14px);display:flex;align-items:center;justify-content:center}
 #loginOv.hidden{display:none}
 .lc{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:36px;width:100%;max-width:360px;text-align:center}
@@ -147,6 +159,7 @@ html.dark .lerr{background:#7f1d1d;color:#fca5a5;border-color:#991b1b}
 input[type=password],input[type=text],input[type=search]{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:9px 12px;font-size:13.5px;color:var(--text);font-family:var(--f);outline:none;transition:border-color .2s,box-shadow .2s}
 input:focus{border-color:var(--a1);box-shadow:0 0 0 3px rgba(29,155,240,.12)}
 
+/* ── Toast ── */
 #toast{position:fixed;bottom:20px;right:20px;padding:10px 16px;border-radius:10px;font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px;box-shadow:var(--shl);transform:translateY(20px);opacity:0;transition:all .3s;z-index:999;pointer-events:none}
 #toast.show{transform:translateY(0);opacity:1}
 #toast.ok{background:#dcfce7;color:#166534;border:1px solid #bbf7d0}
@@ -156,6 +169,7 @@ html.dark #toast.ok{background:#14532d;color:#86efac;border-color:#166534}
 html.dark #toast.err{background:#7f1d1d;color:#fca5a5;border-color:#991b1b}
 html.dark #toast.inf{background:#1e3a8a;color:#93c5fd;border-color:#1d4ed8}
 
+/* ── Import panel ── */
 #importPanel{display:none;position:fixed;inset:0;z-index:150;background:rgba(16,19,28,.75);backdrop-filter:blur(12px);align-items:center;justify-content:center;padding:20px}
 #importPanel.show{display:flex}
 .ip-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shl);padding:28px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto}
@@ -218,7 +232,7 @@ html.dark #toast.inf{background:#1e3a8a;color:#93c5fd;border-color:#1d4ed8}
 
 <!-- TOPBAR -->
 <div class="topbar">
-  <a href="https://text2img.kont.us.ci" target="_blank" style="display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--muted);text-decoration:none;padding:5px 10px;border-radius:8px;border:1px solid var(--border);transition:all .2s" onmouseover="this.style.color='var(--a1)';this.style.borderColor='var(--a1)'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">
+  <a href="https://your-text2img.workers.dev" target="_blank" style="display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--muted);text-decoration:none;padding:5px 10px;border-radius:8px;border:1px solid var(--border);transition:all .2s" onmouseover="this.style.color='var(--a1)';this.style.borderColor='var(--a1)'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">
     <i class="fa-solid fa-wand-magic-sparkles"></i> 文生图
   </a>
   <span class="tb-logo" style="margin-left:12px"><i class="fa-solid fa-images" style="margin-right:7px"></i>AI 图库</span>
@@ -240,7 +254,7 @@ html.dark #toast.inf{background:#1e3a8a;color:#93c5fd;border-color:#1d4ed8}
 <div id="batchBar">
   <span class="batch-info" id="batchInfo">已选 0 张</span>
   <div class="batch-sep"></div>
-  <button class="bd" id="batchSelAll"><i class="fa-solid fa-check-double"></i> 全选本页</button>
+  <button class="bd" id="batchSelAll"><i class="fa-solid fa-check-double"></i> 全选</button>
   <button class="bd" id="batchDesel"><i class="fa-solid fa-xmark"></i> 取消全选</button>
   <div class="batch-sep"></div>
   <button class="bd" id="batchCopyLinks"><i class="fa-solid fa-link"></i> 复制链接</button>
@@ -256,7 +270,7 @@ html.dark #toast.inf{background:#1e3a8a;color:#93c5fd;border-color:#1d4ed8}
 <div class="search-bar">
   <div class="search-wrap">
     <i class="fa-solid fa-magnifying-glass" id="searchIcon"></i>
-    <input type="search" id="searchInput" placeholder="搜索提示词、标签、模型名称…">
+    <input type="search" id="searchInput" placeholder="        搜索提示词、标签、模型名称…">
   </div>
   <button class="btn bp" id="searchBtn"><i class="fa-solid fa-search"></i> 搜索</button>
 </div>
@@ -272,33 +286,39 @@ html.dark #toast.inf{background:#1e3a8a;color:#93c5fd;border-color:#1d4ed8}
   <div class="pagination" id="pagination"></div>
 </div>
 
+
 <!-- IMPORT PANEL -->
 <div id="importPanel">
   <div class="ip-card">
     <div class="ip-title"><i class="fa-solid fa-file-import" style="color:var(--a1)"></i> 导入图片到图库</div>
 
+    <!-- Tab 切换 -->
     <div style="display:flex;gap:0;margin-bottom:16px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
       <button class="ip-tab active" id="tabUrl" style="flex:1;padding:7px;font-size:12.5px;font-weight:600;border:none;cursor:pointer;background:var(--grad);color:#fff;transition:all .2s">🔗 URL 导入</button>
       <button class="ip-tab" id="tabLocal" style="flex:1;padding:7px;font-size:12.5px;font-weight:600;border:none;cursor:pointer;background:none;color:var(--muted);transition:all .2s">📁 本地上传</button>
     </div>
 
+    <!-- URL 导入面板 -->
     <div id="ipUrlPane">
       <div class="ip-sub">粘贴图床直链，每行一个 URL，支持批量导入（每次最多 20 张）</div>
-      <textarea class="ip-textarea" id="importUrls" placeholder="https://image.kont.us.ci/file/abc123.jpg&#10;https://image.kont.us.ci/file/def456.png&#10;..."></textarea>
+      <textarea class="ip-textarea" id="importUrls" placeholder="https://your-image-host.com/file/abc123.jpg&#10;https://your-image-host.com/file/def456.png&#10;..."></textarea>
       <div class="ip-actions">
         <button class="btn bp" id="importStartBtn"><i class="fa-solid fa-wand-magic-sparkles"></i> 开始导入 &amp; AI 分析</button>
         <button class="btn bg" id="importCloseBtn"><i class="fa-solid fa-xmark"></i> 关闭</button>
       </div>
     </div>
 
+    <!-- 本地上传面板 -->
     <div id="ipLocalPane" style="display:none">
       <div class="ip-sub">从本地选择图片，自动上传到图床并 AI 分析打标签（每次最多 10 张）</div>
+      <!-- 拖拽区 -->
       <div id="dropZone" style="border:2px dashed var(--border);border-radius:10px;padding:32px 20px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:12px">
         <i class="fa-solid fa-cloud-arrow-up" style="font-size:28px;color:var(--muted);display:block;margin-bottom:8px"></i>
         <div style="font-size:13px;font-weight:600;margin-bottom:4px">拖拽图片到这里，或点击选择</div>
         <div style="font-size:11.5px;color:var(--muted)">支持 JPG、PNG、WebP、GIF，单张最大 10MB</div>
         <input type="file" id="localFileInput" accept="image/*" multiple style="display:none">
       </div>
+      <!-- 预览区 -->
       <div id="localPreview" style="display:none;margin-bottom:12px">
         <div style="font-size:12px;color:var(--muted);margin-bottom:8px">已选择 <span id="localFileCount">0</span> 张图片</div>
         <div id="localThumbsWrap" style="display:flex;flex-wrap:wrap;gap:8px"></div>
@@ -310,6 +330,7 @@ html.dark #toast.inf{background:#1e3a8a;color:#93c5fd;border-color:#1d4ed8}
       </div>
     </div>
 
+    <!-- 进度（两个面板共用） -->
     <div class="ip-progress" id="ipProgress">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:12.5px;color:var(--muted)" id="ipProgressText">准备中…</span>
@@ -328,11 +349,14 @@ html.dark #toast.inf{background:#1e3a8a;color:#93c5fd;border-color:#1d4ed8}
 (function(){
 'use strict';
 
+// ── Config ──────────────────────────────────────────────────────────────────
+// Gallery Worker 地址，默认同域；如果独立部署请改为完整 URL
 var API_BASE = '';
 var PAGE_SIZE = 24;
+
 var pwd = '', curPage = 1, curQ = '', totalCount = 0, curItem = null;
 
-// ── Theme ─────────────────────────────────────────────────────────────────────
+// ── Theme ───────────────────────────────────────────────────────────────────
 var html = document.documentElement;
 var thIcon = document.getElementById('themeIcon');
 var saved = localStorage.getItem('gallery_theme');
@@ -345,7 +369,7 @@ document.getElementById('themeToggle').addEventListener('click', function() {
   thIcon.className = d ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
 });
 
-// ── Toast ─────────────────────────────────────────────────────────────────────
+// ── Toast ────────────────────────────────────────────────────────────────────
 var toastT;
 function toast(msg, type) {
   type = type || 'inf';
@@ -357,7 +381,7 @@ function toast(msg, type) {
   toastT = setTimeout(function() { t.classList.remove('show'); }, 4000);
 }
 
-// ── Login ─────────────────────────────────────────────────────────────────────
+// ── Login ────────────────────────────────────────────────────────────────────
 var loginOv = document.getElementById('loginOv');
 var lerr    = document.getElementById('lerr');
 var lpEl    = document.getElementById('lp');
@@ -378,7 +402,7 @@ async function doLogin() {
 document.getElementById('lbtn').addEventListener('click', doLogin);
 lpEl.addEventListener('keydown', function(e) { if (e.key === 'Enter') doLogin(); });
 
-// ── API helper ────────────────────────────────────────────────────────────────
+// ── API helper ───────────────────────────────────────────────────────────────
 async function apiFetch(path, method, password, body) {
   var opts = {
     method: method || 'GET',
@@ -391,16 +415,23 @@ async function apiFetch(path, method, password, body) {
   return fetch(API_BASE + path, opts);
 }
 
-// ── Load page ─────────────────────────────────────────────────────────────────
+// ── Load / render ─────────────────────────────────────────────────────────────
 async function loadPage(page, q) {
   if (q !== undefined) curQ = q;
   curPage = page;
+
   var qs = '?page=' + page + (curQ ? '&q=' + encodeURIComponent(curQ) : '');
-  var res = await apiFetch('/gallery/search' + qs);
+  var path = curQ ? '/gallery/search' + qs : '/gallery/list' + qs;
+  // fallback: use search endpoint for both
+  path = '/gallery/search' + qs;
+
+  var res = await apiFetch(path);
   if (!res.ok) { toast('加载失败', 'err'); return; }
   var data = await res.json();
+
   totalCount = data.total || 0;
   document.getElementById('totalBadge').textContent = '共 ' + totalCount + ' 张';
+
   renderGrid(data.items || []);
   renderPagination(data.total || 0, page);
 }
@@ -426,6 +457,7 @@ function exitSelectMode() {
   document.getElementById('timelineWrap').classList.remove('select-mode');
   document.getElementById('batchBar').classList.remove('show');
   document.getElementById('selectModeBtn').style.display = '';
+  // 取消所有选中状态
   document.querySelectorAll('.gcard.selected').forEach(function(c) { c.classList.remove('selected'); });
   document.querySelectorAll('.gcard .cb-wrap input').forEach(function(cb) { cb.checked = false; });
 }
@@ -475,7 +507,7 @@ document.getElementById('batchDesel').addEventListener('click', function() {
 document.getElementById('batchCopyLinks').addEventListener('click', function() {
   if (!selectedIds.size) { toast('请先选择图片', 'err'); return; }
   var links = allItems.filter(function(i) { return selectedIds.has(i.id); }).map(function(i) { return i.imageUrl; });
-  navigator.clipboard.writeText(links.join('\n')).then(function() {
+  navigator.clipboard.writeText(links.join('\\n')).then(function() {
     toast('已复制 ' + links.length + ' 条链接', 'ok');
   });
 });
@@ -500,12 +532,16 @@ document.getElementById('batchDownload').addEventListener('click', function() {
 document.getElementById('batchExport').addEventListener('click', function() {
   if (!selectedIds.size) { toast('请先选择图片', 'err'); return; }
   var items = allItems.filter(function(i) { return selectedIds.has(i.id); });
-  var blob = new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' });
+  var json = JSON.stringify(items, null, 2);
+  var blob = new Blob([json], { type: 'application/json' });
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
-  a.href = url; a.download = 'gallery-export-' + Date.now() + '.json';
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a); URL.revokeObjectURL(url);
+  a.href = url;
+  a.download = 'gallery-export-' + Date.now() + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
   toast('已导出 ' + items.length + ' 条记录', 'ok');
 });
 
@@ -546,6 +582,7 @@ function makeCard(item) {
   card.className = 'gcard';
   card.dataset.id = item.id;
 
+  // checkbox（选择模式下显示）
   var cbWrap = document.createElement('div');
   cbWrap.className = 'cb-wrap';
   var cb = document.createElement('input');
@@ -558,20 +595,8 @@ function makeCard(item) {
   img.src = item.imageUrl;
   img.alt = item.prompt || '';
   img.loading = 'lazy';
-
-  // ── 修复图片变形：按视图模式设置不同的显示策略 ──
-  if (viewMode === 'list') {
-    img.style.cssText = 'width:120px;height:120px;object-fit:cover;flex-shrink:0';
-  } else if (viewMode === 'large') {
-    img.style.cssText = 'width:100%;height:320px;object-fit:cover;display:block';
-  } else {
-    // 瀑布流 / 时间轴：保持原始比例，不裁剪不变形
-    img.style.width = '100%';
-    img.style.display = 'block';
-    img.style.objectFit = 'contain';
-    if (item.width && item.height) {
-      img.style.aspectRatio = item.width + '/' + item.height;
-    }
+  if (viewMode !== 'list') {
+    img.style.aspectRatio = (item.width && item.height) ? item.width + '/' + item.height : 'auto';
   }
 
   var body = document.createElement('div');
@@ -605,7 +630,7 @@ function makeCard(item) {
   var ts = new Date(item.ts).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
   var extra = viewMode === 'list'
     ? '<i class="fa-solid fa-microchip"></i>' + (item.model || '-')
-      + ' &nbsp;<i class="fa-solid fa-ruler-combined"></i>' + (item.width || '?') + '\xd7' + (item.height || '?')
+      + ' &nbsp;<i class="fa-solid fa-ruler-combined"></i>' + (item.width || '?') + '×' + (item.height || '?')
       + ' &nbsp;<i class="fa-regular fa-calendar"></i>' + ts
     : '<i class="fa-solid fa-microchip"></i>' + (item.model || '-')
       + ' &nbsp;<i class="fa-regular fa-calendar"></i>' + ts;
@@ -625,10 +650,10 @@ function makeCard(item) {
 
 function renderGrid(items) {
   allItems = items;
-  var grid   = document.getElementById('grid');
-  var tlWrap = document.getElementById('timelineWrap');
-  var box    = document.getElementById('stateBox');
-  var msg    = document.getElementById('stateMsg');
+  var grid    = document.getElementById('grid');
+  var tlWrap  = document.getElementById('timelineWrap');
+  var box     = document.getElementById('stateBox');
+  var msg     = document.getElementById('stateMsg');
   grid.innerHTML = '';
   tlWrap.innerHTML = '';
 
@@ -644,41 +669,49 @@ function renderGrid(items) {
   if (viewMode === 'timeline') {
     grid.style.display = 'none';
     tlWrap.style.display = 'block';
+
+    // 按日期分组
     var groups = {};
     items.forEach(function(item) {
       var d = new Date(item.ts).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
       if (!groups[d]) groups[d] = [];
       groups[d].push(item);
     });
+
     Object.keys(groups).forEach(function(date) {
       var section = document.createElement('div');
       section.className = 'timeline-group';
+
       var label = document.createElement('div');
       label.className = 'tl-date';
       label.textContent = date + '  (' + groups[date].length + ' 张)';
+
       var tlGrid = document.createElement('div');
       tlGrid.className = 'tl-grid';
       groups[date].forEach(function(item) { tlGrid.appendChild(makeCard(item)); });
+
       section.appendChild(label);
       section.appendChild(tlGrid);
       tlWrap.appendChild(section);
     });
+
   } else {
     tlWrap.style.display = 'none';
     grid.style.display = '';
     grid.className = 'gallery-grid'
-      + (viewMode === 'large' ? ' mode-large' : '')
-      + (viewMode === 'list'  ? ' mode-list'  : '');
+      + (viewMode === 'large'    ? ' mode-large' : '')
+      + (viewMode === 'list'     ? ' mode-list'  : '');
     items.forEach(function(item) { grid.appendChild(makeCard(item)); });
   }
 
+  // 初始化按钮激活状态
   ['waterfall','large','list','timeline'].forEach(function(m) {
     document.getElementById('vt-' + m).classList.toggle('active', m === viewMode);
   });
 }
 
 function renderPagination(total, cur) {
-  var pag = document.getElementById('pagination');
+  var pag  = document.getElementById('pagination');
   pag.innerHTML = '';
   var pages = Math.ceil(total / PAGE_SIZE);
   if (pages <= 1) return;
@@ -686,7 +719,7 @@ function renderPagination(total, cur) {
   function btn(label, page, active, disabled) {
     var b = document.createElement('button');
     b.className = 'pg-btn' + (active ? ' active' : '');
-    b.disabled = !!disabled;
+    b.disabled  = !!disabled;
     b.innerHTML = label;
     b.addEventListener('click', function() { loadPage(page, curQ); window.scrollTo(0, 0); });
     pag.appendChild(b);
@@ -694,24 +727,17 @@ function renderPagination(total, cur) {
 
   btn('<i class="fa-solid fa-chevron-left"></i>', cur - 1, false, cur === 1);
   var start = Math.max(1, cur - 2), end = Math.min(pages, cur + 2);
-  if (start > 1) {
-    btn('1', 1, false, false);
-    if (start > 2) { var d = document.createElement('span'); d.textContent = '\u2026'; d.style.cssText = 'display:flex;align-items:center;color:var(--muted);font-size:13px'; pag.appendChild(d); }
-  }
+  if (start > 1) { btn('1', 1, false, false); if (start > 2) { var d = document.createElement('span'); d.textContent = '…'; d.style.cssText='display:flex;align-items:center;color:var(--muted);font-size:13px'; pag.appendChild(d); } }
   for (var i = start; i <= end; i++) btn(i, i, i === cur, false);
-  if (end < pages) {
-    if (end < pages - 1) { var d2 = document.createElement('span'); d2.textContent = '\u2026'; d2.style.cssText = 'display:flex;align-items:center;color:var(--muted);font-size:13px'; pag.appendChild(d2); }
-    btn(pages, pages, false, false);
-  }
+  if (end < pages) { if (end < pages - 1) { var d2 = document.createElement('span'); d2.textContent = '…'; d2.style.cssText='display:flex;align-items:center;color:var(--muted);font-size:13px'; pag.appendChild(d2); } btn(pages, pages, false, false); }
   btn('<i class="fa-solid fa-chevron-right"></i>', cur + 1, false, cur === pages);
 }
 
 // ── Lightbox ──────────────────────────────────────────────────────────────────
 var lb = document.getElementById('lb');
-
 function openLightbox(item) {
   curItem = item;
-  document.getElementById('lbImg').src = item.imageUrl;
+  document.getElementById('lbImg').src   = item.imageUrl;
   document.getElementById('lbPrompt').textContent = item.prompt || '';
   document.getElementById('lbDl').href   = item.imageUrl;
   document.getElementById('lbOpen').href = item.imageUrl;
@@ -719,6 +745,7 @@ function openLightbox(item) {
     navigator.clipboard.writeText(item.imageUrl).then(function() { toast('链接已复制', 'ok'); });
   };
 
+  // Tags
   var tagsEl = document.getElementById('lbTags');
   tagsEl.innerHTML = '';
   (item.aiTags || []).forEach(function(t) {
@@ -728,11 +755,12 @@ function openLightbox(item) {
     var s = document.createElement('span'); s.className = 'tag'; s.textContent = t; tagsEl.appendChild(s);
   });
 
+  // Meta
   var metaEl = document.getElementById('lbMeta');
   metaEl.innerHTML = '';
   var fields = [
     { k: '模型', v: item.model || '-' },
-    { k: '尺寸', v: item.width && item.height ? item.width + '\xd7' + item.height : '-' },
+    { k: '尺寸', v: item.width && item.height ? item.width + '×' + item.height : '-' },
     { k: '步数', v: item.num_steps || '-' },
     { k: '种子', v: item.seed || '-' },
     { k: '增强', v: item.enhance ? '已开启' : '未开启' },
@@ -744,14 +772,10 @@ function openLightbox(item) {
     metaEl.appendChild(d);
   });
 
-  // ── 修复：先清除旧的 aiDesc，避免重复叠加 ──
-  var oldDesc = document.getElementById('lbAiDesc');
-  if (oldDesc) oldDesc.remove();
   if (item.aiDesc) {
     var desc = document.createElement('p');
-    desc.id = 'lbAiDesc';
     desc.style.cssText = 'font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5';
-    desc.textContent = '\uD83E\uDD16 ' + item.aiDesc;
+    desc.textContent = '🤖 ' + item.aiDesc;
     metaEl.parentNode.insertBefore(desc, metaEl.nextSibling);
   }
 
@@ -782,12 +806,14 @@ document.getElementById('searchBtn').addEventListener('click', function() {
 document.getElementById('searchInput').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') loadPage(1, this.value.trim());
 });
+// Clear search on empty
 document.getElementById('searchInput').addEventListener('input', function() {
   document.getElementById('searchIcon').style.display = this.value ? 'none' : '';
   if (!this.value) loadPage(1, '');
 });
 
-// ── Import panel ──────────────────────────────────────────────────────────────
+
+// ── Import panel ─────────────────────────────────────────────────────────────
 var importPanel = document.getElementById('importPanel');
 
 function resetImportPanel() {
@@ -809,6 +835,7 @@ document.getElementById('importCloseBtn').addEventListener('click', closeImport)
 document.getElementById('importCloseBtn2').addEventListener('click', closeImport);
 importPanel.addEventListener('click', function(e) { if (e.target === importPanel) closeImport(); });
 
+// Tab 切换
 document.getElementById('tabUrl').addEventListener('click', function() {
   document.getElementById('ipUrlPane').style.display = '';
   document.getElementById('ipLocalPane').style.display = 'none';
@@ -826,7 +853,7 @@ document.getElementById('tabLocal').addEventListener('click', function() {
   document.getElementById('ipSummary').classList.remove('show');
 });
 
-// ── 本地上传 ──────────────────────────────────────────────────────────────────
+// ── 本地上传逻辑 ──────────────────────────────────────────────────────────────
 var selectedFiles = [];
 var dropZone = document.getElementById('dropZone');
 var fileInput = document.getElementById('localFileInput');
@@ -874,6 +901,7 @@ function renderThumbs() {
   preview.style.display = '';
   countEl.textContent = selectedFiles.length;
   uploadBtn.disabled = false;
+
   selectedFiles.forEach(function(f, idx) {
     var thumb = document.createElement('div');
     thumb.style.cssText = 'position:relative;width:70px;height:70px;border-radius:8px;overflow:hidden;border:1px solid var(--border)';
@@ -882,7 +910,7 @@ function renderThumbs() {
     img.src = URL.createObjectURL(f);
     var del = document.createElement('button');
     del.style.cssText = 'position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;border:none;background:rgba(0,0,0,.6);color:#fff;font-size:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1';
-    del.innerHTML = '\u2715';
+    del.innerHTML = '✕';
     del.addEventListener('click', function() { selectedFiles.splice(idx, 1); renderThumbs(); });
     thumb.appendChild(img);
     thumb.appendChild(del);
@@ -899,7 +927,7 @@ document.getElementById('localClearBtn').addEventListener('click', clearLocalFil
 
 document.getElementById('localUploadBtn').addEventListener('click', async function() {
   if (!selectedFiles.length) return;
-  var btn     = this;
+  var btn      = this;
   var progress = document.getElementById('ipProgress');
   var log      = document.getElementById('ipLog');
   var bar      = document.getElementById('ipBar');
@@ -908,7 +936,7 @@ document.getElementById('localUploadBtn').addEventListener('click', async functi
   var summary  = document.getElementById('ipSummary');
 
   btn.disabled = true;
-  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 上传中\u2026';
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 上传中…';
   log.innerHTML = '';
   progress.classList.add('show');
   summary.classList.remove('show');
@@ -923,7 +951,8 @@ document.getElementById('localUploadBtn').addEventListener('click', async functi
       var form = new FormData();
       form.append('file', f, f.name);
       form.append('prompt', '');
-      form.append('imageHost', 'https://image.kont.us.ci');
+      form.append('imageHost', 'https://your-image-host.com');
+
       var res = await fetch(API_BASE + '/gallery/ingest', {
         method: 'POST',
         headers: { 'X-Password': pwd },
@@ -935,18 +964,18 @@ document.getElementById('localUploadBtn').addEventListener('click', async functi
         okCount++;
         var li = document.createElement('div'); li.className = 'ip-log-item';
         var tagStr = data.aiTags && data.aiTags.length ? ' <span style="color:var(--a2);font-size:10px">[' + data.aiTags.slice(0,4).join(', ') + ']</span>' : '';
-        li.innerHTML = '<span class="st st-ok">\u2713 已上传</span><span class="url">' + f.name + tagStr + '</span>';
+        li.innerHTML = '<span class="st st-ok">✓ 已上传</span><span class="url">' + f.name + tagStr + '</span>';
         log.appendChild(li);
       } else {
         errCount++;
         var li2 = document.createElement('div'); li2.className = 'ip-log-item';
-        li2.innerHTML = '<span class="st st-err">\u2717 失败</span><span class="url">' + f.name + '\uff1a' + (data.error || '未知错误') + '</span>';
+        li2.innerHTML = '<span class="st st-err">✗ 失败</span><span class="url">' + f.name + '：' + (data.error || '未知错误') + '</span>';
         log.appendChild(li2);
       }
     } catch (e) {
       done++; errCount++;
       var li3 = document.createElement('div'); li3.className = 'ip-log-item';
-      li3.innerHTML = '<span class="st st-err">\u2717 失败</span><span class="url">' + f.name + '</span>';
+      li3.innerHTML = '<span class="st st-err">✗ 失败</span><span class="url">' + f.name + '</span>';
       log.appendChild(li3);
     }
     log.scrollTop = log.scrollHeight;
@@ -967,45 +996,53 @@ document.getElementById('localUploadBtn').addEventListener('click', async functi
 document.getElementById('importStartBtn').addEventListener('click', async function() {
   var raw = document.getElementById('importUrls').value.trim();
   if (!raw) { toast('请先粘贴图片 URL', 'err'); return; }
-  var urls = raw.split('\n').map(function(u) { return u.trim(); }).filter(Boolean);
+
+  var urls = raw.split('\\n').map(function(u) { return u.trim(); }).filter(Boolean);
   if (!urls.length) { toast('没有有效的 URL', 'err'); return; }
 
-  var btn      = document.getElementById('importStartBtn');
-  var progress = document.getElementById('ipProgress');
-  var log      = document.getElementById('ipLog');
-  var bar      = document.getElementById('ipBar');
-  var pct      = document.getElementById('ipProgressPct');
-  var ptxt     = document.getElementById('ipProgressText');
-  var summary  = document.getElementById('ipSummary');
+  var btn       = document.getElementById('importStartBtn');
+  var progress  = document.getElementById('ipProgress');
+  var log       = document.getElementById('ipLog');
+  var bar       = document.getElementById('ipBar');
+  var pct       = document.getElementById('ipProgressPct');
+  var ptxt      = document.getElementById('ipProgressText');
+  var summary   = document.getElementById('ipSummary');
 
   btn.disabled = true;
-  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 分析中\u2026';
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 分析中…';
   log.innerHTML = '';
   progress.classList.add('show');
   summary.classList.remove('show');
   bar.style.width = '0%';
 
   var total = urls.length, done = 0, okCount = 0, skipCount = 0, errCount = 0;
-  var BATCH = 5;
 
+  // 每批 5 个发送（避免 Worker 超时）
+  var BATCH = 5;
   for (var i = 0; i < urls.length; i += BATCH) {
     var batch = urls.slice(i, i + BATCH);
-    ptxt.textContent = '正在处理第 ' + (i + 1) + '\u2013' + Math.min(i + BATCH, total) + ' 张，共 ' + total + ' 张\u2026';
+    ptxt.textContent = '正在处理第 ' + (i + 1) + '–' + Math.min(i + BATCH, total) + ' 张，共 ' + total + ' 张…';
+
     try {
       var res = await apiFetch('/gallery/import', 'POST', undefined, { urls: batch });
       var data = await res.json();
+
       if (data.results) {
         data.results.forEach(function(r) {
           done++;
           var stClass, stText;
-          if (r.status === 'ok')           { okCount++;   stClass = 'st-ok';   stText = '\u2713 已导入'; }
-          else if (r.status === 'skipped') { skipCount++; stClass = 'st-skip'; stText = '\u2014 已存在'; }
-          else                             { errCount++;  stClass = 'st-err';  stText = '\u2717 失败'; }
-          var li = document.createElement('div'); li.className = 'ip-log-item';
+          if (r.status === 'ok')      { okCount++;   stClass = 'st-ok';   stText = '✓ 已导入'; }
+          else if (r.status === 'skipped') { skipCount++; stClass = 'st-skip'; stText = '— 已存在'; }
+          else                        { errCount++;  stClass = 'st-err';  stText = '✗ 失败'; }
+
+          var li = document.createElement('div');
+          li.className = 'ip-log-item';
           var tagStr = r.aiTags && r.aiTags.length ? ' <span style="color:var(--a2);font-size:10px">[' + r.aiTags.slice(0,4).join(', ') + ']</span>' : '';
-          li.innerHTML = '<span class="st ' + stClass + '">' + stText + '</span><span class="url">' + r.imageUrl + tagStr + '</span>';
+          li.innerHTML = '<span class="st ' + stClass + '">' + stText + '</span>'
+            + '<span class="url">' + r.imageUrl + tagStr + '</span>';
           log.appendChild(li);
           log.scrollTop = log.scrollHeight;
+
           var p = Math.round(done / total * 100);
           bar.style.width = p + '%';
           pct.textContent = p + '%';
@@ -1015,28 +1052,30 @@ document.getElementById('importStartBtn').addEventListener('click', async functi
       batch.forEach(function(u) {
         done++; errCount++;
         var li = document.createElement('div'); li.className = 'ip-log-item';
-        li.innerHTML = '<span class="st st-err">\u2717 失败</span><span class="url">' + u + '</span>';
+        li.innerHTML = '<span class="st st-err">✗ 失败</span><span class="url">' + u + '</span>';
         log.appendChild(li);
       });
     }
   }
 
+  // 完成
   btn.disabled = false;
   btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> 开始导入 &amp; AI 分析';
   bar.style.width = '100%'; pct.textContent = '100%';
   ptxt.textContent = '导入完成';
+
   summary.textContent = '完成：成功导入 ' + okCount + ' 张，跳过 ' + skipCount + ' 张（已存在），失败 ' + errCount + ' 张';
   summary.classList.add('show');
   toast('导入完成，成功 ' + okCount + ' 张', okCount > 0 ? 'ok' : 'inf');
+
   if (okCount > 0) loadPage(1, '');
 });
 
 })();
-<\/script>
+</script>
 </body>
-</html>`;
-
-// ── Worker 后端 ───────────────────────────────────────────────────────────────
+</html>
+`;
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -1046,17 +1085,6 @@ const CORS = {
 
 const PAGE_SIZE = 24;
 
-// ── 修复：KV list 分页，避免超过 1000 条丢失数据 ──
-async function listAllKeys(env, prefix) {
-  let keys = [], cursor;
-  do {
-    const res = await env.GALLERY_KV.list({ prefix, cursor, limit: 1000 });
-    keys.push(...res.keys);
-    cursor = res.list_complete ? null : res.cursor;
-  } while (cursor);
-  return keys;
-}
-
 export default {
   async fetch(request, env) {
     if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
@@ -1064,6 +1092,7 @@ export default {
     const url  = new URL(request.url);
     const path = url.pathname;
 
+    // ── Auth helper ───────────────────────────────────────────────────────────
     function authed(req) {
       const PASSWORDS = env.PASSWORD
         ? env.PASSWORD.split(',').map(p => p.trim()).filter(Boolean)
@@ -1087,30 +1116,33 @@ export default {
 
     try {
 
-      // ── POST /gallery/ingest ───────────────────────────────────────────────
+      // ── POST /gallery/ingest — 接收图片，AI打标签，上传图床，存档 ───────────
       if (path === '/gallery/ingest' && request.method === 'POST') {
         if (!authed(request)) return unauth();
 
-        const form       = await request.formData();
-        const file       = form.get('file');
-        const prompt     = form.get('prompt')         || '';
-        const origPrompt = form.get('originalPrompt') || prompt;
-        const model      = form.get('model')          || '';
-        const width      = parseInt(form.get('width'))  || 0;
-        const height     = parseInt(form.get('height')) || 0;
-        const seed       = parseInt(form.get('seed'))   || 0;
-        const enhance    = form.get('enhance') === 'true';
-        const imageHost  = form.get('imageHost')      || '';
+        // 接收 multipart/form-data
+        const form      = await request.formData();
+        const file      = form.get('file');
+        const prompt    = form.get('prompt')         || '';
+        const origPrompt= form.get('originalPrompt') || prompt;
+        const model     = form.get('model')          || '';
+        const width     = parseInt(form.get('width'))  || 0;
+        const height    = parseInt(form.get('height')) || 0;
+        const seed      = parseInt(form.get('seed'))   || 0;
+        const enhance   = form.get('enhance') === 'true';
+        const imageHost = form.get('imageHost')      || '';
 
         if (!file) return json({ error: '缺少图片文件' }, 400);
 
-        const imgBytes    = await file.arrayBuffer();
-        const imgArr      = [...new Uint8Array(imgBytes)];
-        const contentType = file.type || 'image/png';
+        const imgBytes   = await file.arrayBuffer();
+        const imgArr     = [...new Uint8Array(imgBytes)];
+        const contentType= file.type || 'image/png';
 
+        // ① AI 视觉打标签：LLaVA 英文分析 → Llama 翻译为中文
         let aiTags = [], aiDesc = '';
         try {
           if (env.AI) {
+            // Step 1: LLaVA 看图输出英文
             const vision = await env.AI.run('@cf/llava-hf/llava-1.5-7b-hf', {
               image: imgArr,
               prompt: 'Describe this image briefly. List 6-10 tags for subject, style, colors, mood. Format: DESCRIPTION: <text> | TAGS: tag1, tag2, tag3',
@@ -1120,8 +1152,10 @@ export default {
             const dm = raw.match(/DESCRIPTION:\s*(.+?)\s*\|/);
             const tm = raw.match(/TAGS:\s*(.+)/);
             const engDesc = dm ? dm[1].trim() : raw.slice(0, 120);
-            const engTags = tm ? tm[1].split(',').map(t => t.trim()).filter(Boolean).slice(0, 10) : [];
+            const engTags = tm ? tm[1].split(',').map(function(t){ return t.trim(); }).filter(Boolean).slice(0, 10) : [];
+            console.log('[ingest] LLaVA raw:', raw.slice(0, 80));
 
+            // Step 2: Llama 翻译为中文
             const translateInput = 'DESC: ' + engDesc + '\nTAGS: ' + engTags.join(', ');
             const llama = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
               messages: [
@@ -1135,12 +1169,14 @@ export default {
             const ttm = tr.match(/标签[：:]\s*(.+)/);
             aiDesc = tdm ? tdm[1].trim() : engDesc;
             const tagStr = ttm ? ttm[1] : engTags.join('，');
-            aiTags = tagStr.split(/[,，]/).map(t => t.trim()).filter(Boolean).slice(0, 10);
+            aiTags = tagStr.split(/[,，]/).map(function(t){ return t.trim(); }).filter(Boolean).slice(0, 10);
+            console.log('[ingest] AI tags (CN):', aiTags.join(', '));
           }
         } catch (e) {
           console.error('[ingest] AI vision failed:', e.message);
         }
 
+        // ② 上传到图床
         let imageUrl = '';
         if (imageHost) {
           try {
@@ -1151,6 +1187,9 @@ export default {
               const upJson = await upRes.json();
               const src = Array.isArray(upJson) ? upJson[0]?.src : upJson?.src;
               if (src) imageUrl = src.startsWith('http') ? src : imageHost + src;
+              console.log('[ingest] uploaded to imageHost:', imageUrl);
+            } else {
+              console.error('[ingest] imageHost upload failed:', upRes.status);
             }
           } catch (e) {
             console.error('[ingest] imageHost upload error:', e.message);
@@ -1159,6 +1198,7 @@ export default {
 
         if (!imageUrl) return json({ error: '图床上传失败' }, 502);
 
+        // ③ 从 prompt 提取关键词
         const promptTags = prompt
           .toLowerCase()
           .replace(/[,，。.!！?？]/g, ' ')
@@ -1166,9 +1206,11 @@ export default {
           .filter(w => w.length > 2 && w.length < 20)
           .slice(0, 8);
 
+        // ④ 存入 KV
         const record = {
-          id: crypto.randomUUID(),
-          imageUrl, prompt,
+          id:             crypto.randomUUID(),
+          imageUrl,
+          prompt,
           originalPrompt: origPrompt,
           model, width, height, seed, enhance,
           aiDesc, aiTags, promptTags,
@@ -1178,6 +1220,7 @@ export default {
         };
         const kvKey = `img:${String(Date.now()).padStart(16, '0')}:${record.id.slice(0, 8)}`;
         await env.GALLERY_KV.put(kvKey, JSON.stringify(record));
+        console.log('[ingest] saved to KV:', kvKey);
 
         return json({ ok: true, imageUrl, aiTags, aiDesc, id: record.id });
       }
@@ -1188,15 +1231,21 @@ export default {
 
         const body = await request.json();
         const { imageUrl, prompt, model, width, height, seed, enhance, originalPrompt } = body;
-        if (!imageUrl || !prompt) return json({ error: '缺少 imageUrl 或 prompt' }, 400);
 
-        let aiTags = [], aiDesc = '';
+        if (!imageUrl || !prompt) {
+          return json({ error: '缺少 imageUrl 或 prompt' }, 400);
+        }
+
+        // 用 AI 视觉模型分析图片，生成标签（非阻塞，失败不影响保存）
+        let aiTags = [];
+        let aiDesc = '';
         try {
           if (env.AI) {
             const imgRes = await fetch(imageUrl);
             if (imgRes.ok) {
-              const imgArr = [...new Uint8Array(await imgRes.arrayBuffer())];
-              const vision = await env.AI.run('@cf/llava-hf/llava-1.5-7b-hf', {
+              const imgBlob = await imgRes.arrayBuffer();
+              const imgArr  = [...new Uint8Array(imgBlob)];
+              const vision  = await env.AI.run('@cf/llava-hf/llava-1.5-7b-hf', {
                 image: imgArr,
                 prompt: '用中文描述这张图片。然后列出6-10个简洁的中文标签，描述主体、风格、色彩和氛围。格式：描述：<内容> | 标签：标签1，标签2，标签3，...',
                 max_tokens: 256,
@@ -1212,6 +1261,7 @@ export default {
           console.error('AI vision failed:', e);
         }
 
+        // 从 prompt 里额外提取关键词作为备用标签
         const promptTags = prompt
           .toLowerCase()
           .replace(/[,，。.!！?？]/g, ' ')
@@ -1220,15 +1270,25 @@ export default {
           .slice(0, 8);
 
         const record = {
-          id: crypto.randomUUID(),
-          imageUrl, prompt,
+          id:             crypto.randomUUID(),
+          imageUrl,
+          prompt,
           originalPrompt: originalPrompt || prompt,
-          model: model || '', width: width || 0, height: height || 0,
-          seed: seed || 0, enhance: !!enhance,
-          aiDesc, aiTags, promptTags,
-          searchText: [prompt, originalPrompt, model, ...aiTags, ...promptTags].join(' ').toLowerCase(),
+          model:          model  || '',
+          width:          width  || 0,
+          height:         height || 0,
+          seed:           seed   || 0,
+          enhance:        !!enhance,
+          aiDesc,
+          aiTags,
+          promptTags,
+          // 合并所有标签，用于全文搜索
+          searchText: [prompt, originalPrompt, model, ...aiTags, ...promptTags]
+            .join(' ').toLowerCase(),
           ts: Date.now(),
         };
+
+        // 写入 KV，key = "img:{timestamp}:{uuid前8位}"，保证时间倒序
         const kvKey = `img:${String(Date.now()).padStart(16, '0')}:${record.id.slice(0, 8)}`;
         await env.GALLERY_KV.put(kvKey, JSON.stringify(record));
 
@@ -1242,9 +1302,12 @@ export default {
         const q    = (url.searchParams.get('q') || '').toLowerCase().trim();
         const page = Math.max(1, parseInt(url.searchParams.get('page') || '1'));
 
-        // 修复：使用分页拉取所有 key
-        const keys = (await listAllKeys(env, 'img:')).reverse();
+        // 拉取所有 key（KV list 按字典序，key 前缀带时间戳所以是时间倒序）
+        const listed = await env.GALLERY_KV.list({ prefix: 'img:' });
+        const keys   = listed.keys.reverse(); // 最新在前
 
+        // 过滤
+        let filtered = keys;
         if (q) {
           const matches = [];
           for (const k of keys) {
@@ -1253,10 +1316,11 @@ export default {
             const rec = JSON.parse(raw);
             if (rec.searchText && rec.searchText.includes(q)) matches.push(rec);
           }
-          const start = (page - 1) * PAGE_SIZE;
+          const start  = (page - 1) * PAGE_SIZE;
           return json({ total: matches.length, page, items: matches.slice(start, start + PAGE_SIZE) });
         }
 
+        // 无搜索词 → 分页返回
         const pageKeys = keys.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
         const items = [];
         for (const k of pageKeys) {
@@ -1266,34 +1330,35 @@ export default {
         return json({ total: keys.length, page, items });
       }
 
-      // ── POST /gallery/import ───────────────────────────────────────────────
+
+      // ── POST /gallery/import — 手动导入单张或批量图片 ──────────────────────
       if (path === '/gallery/import' && request.method === 'POST') {
         if (!authed(request)) return unauth();
 
         const body = await request.json();
+        // 支持单条 { imageUrl } 或批量 { urls: [...] }
         const urlList = body.urls
           ? body.urls
           : (body.imageUrl ? [body.imageUrl] : []);
+
         if (!urlList.length) return json({ error: '缺少 imageUrl 或 urls' }, 400);
 
-        // 修复：一次性建立已有 URL 的 Set，避免 O(n²) 查重
-        const allKeys = await listAllKeys(env, 'img:');
-        const existingUrls = new Set();
-        for (const k of allKeys) {
-          const raw = await env.GALLERY_KV.get(k.name);
-          if (raw) existingUrls.add(JSON.parse(raw).imageUrl);
-        }
-
         const results = [];
-        for (const imageUrl of urlList.slice(0, 20)) {
+        for (const imageUrl of urlList.slice(0, 20)) { // 单次最多 20 张防超时
           const trimmed = imageUrl.trim();
           if (!trimmed) continue;
 
-          if (existingUrls.has(trimmed)) {
-            results.push({ imageUrl: trimmed, status: 'skipped', reason: '已存在' });
-            continue;
+          // 检查是否已存在（按 imageUrl 去重）
+          const listed = await env.GALLERY_KV.list({ prefix: 'img:' });
+          let exists = false;
+          for (const k of listed.keys) {
+            const raw = await env.GALLERY_KV.get(k.name);
+            if (!raw) continue;
+            if (JSON.parse(raw).imageUrl === trimmed) { exists = true; break; }
           }
+          if (exists) { results.push({ imageUrl: trimmed, status: 'skipped', reason: '已存在' }); continue; }
 
+          // AI 视觉分析
           let aiTags = [], aiDesc = '';
           try {
             if (env.AI) {
@@ -1306,35 +1371,33 @@ export default {
                   max_tokens: 256,
                 });
                 const raw = vision?.description || '';
-                // 修复：正则匹配中文格式
-                const dm = raw.match(/描述[：:]\s*(.+?)\s*\|/s);
-                const tm = raw.match(/标签[：:]\s*(.+)/s);
+                const dm = raw.match(/DESCRIPTION:\s*(.+?)\s*\|/s);
+                const tm = raw.match(/TAGS:\s*(.+)/s);
                 if (dm) aiDesc = dm[1].trim();
-                if (tm) aiTags = tm[1].split(/[,，]/).map(t => t.trim()).filter(Boolean).slice(0, 10);
+                if (tm) aiTags = tm[1].split(',').map(t => t.trim()).filter(Boolean).slice(0, 10);
               }
             }
-          } catch (e) {
-            console.error('Vision failed for', trimmed, e);
-          }
+          } catch (e) { console.error('Vision failed for', trimmed, e); }
 
           const record = {
-            id: crypto.randomUUID(),
-            imageUrl: trimmed,
-            prompt: aiDesc || '手动导入',
-            originalPrompt: '手动导入',
-            model: 'manual',
+            id:            crypto.randomUUID(),
+            imageUrl:      trimmed,
+            prompt:        aiDesc || '手动导入',
+            originalPrompt:'手动导入',
+            model:         'manual',
             width: 0, height: 0, seed: 0, enhance: false,
             aiDesc, aiTags,
-            promptTags: aiTags.slice(0, 5),
-            searchText: [aiDesc, ...aiTags].join(' ').toLowerCase(),
-            ts: Date.now(),
-            source: 'manual',
+            promptTags:    aiTags.slice(0, 5),
+            searchText:    [aiDesc, ...aiTags].join(' ').toLowerCase(),
+            ts:            Date.now(),
+            source:        'manual',
           };
 
           const kvKey = `img:${String(Date.now()).padStart(16, '0')}:${record.id.slice(0, 8)}`;
           await env.GALLERY_KV.put(kvKey, JSON.stringify(record));
           results.push({ imageUrl: trimmed, status: 'ok', id: record.id, aiTags, aiDesc });
 
+          // 避免请求过快
           if (urlList.length > 1) await new Promise(r => setTimeout(r, 300));
         }
 
@@ -1350,11 +1413,13 @@ export default {
         const id = url.searchParams.get('id');
         if (!id) return json({ error: '缺少 id' }, 400);
 
-        const allKeys = await listAllKeys(env, 'img:');
-        for (const k of allKeys) {
+        // 搜索并删除匹配的 key
+        const listed = await env.GALLERY_KV.list({ prefix: 'img:' });
+        for (const k of listed.keys) {
           const raw = await env.GALLERY_KV.get(k.name);
           if (!raw) continue;
-          if (JSON.parse(raw).id === id) {
+          const rec = JSON.parse(raw);
+          if (rec.id === id) {
             await env.GALLERY_KV.delete(k.name);
             return json({ ok: true });
           }
@@ -1371,7 +1436,6 @@ export default {
       }
 
       return new Response('Not Found', { status: 404 });
-
     } catch (err) {
       console.error('Gallery worker error:', err);
       return json({ error: '服务器内部错误', details: err.message }, 500);
