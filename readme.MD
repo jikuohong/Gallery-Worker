@@ -42,8 +42,8 @@
 
 | 变量名 | 示例值 | 说明 |
 |--------|--------|------|
-| `GALLERY_URL` | `https://gallery.kont.us.ci` | Gallery Worker 地址，末尾不要加 `/` |
-| `IMAGE_HOST` | `https://image.kont.us.ci` | 图床地址，末尾不要加 `/` |
+| `GALLERY_URL` | `https://your-gallery.workers.dev` | Gallery Worker 地址，末尾不要加 `/` |
+| `IMAGE_HOST` | `https://your-image-host.com` | 图床地址，末尾不要加 `/` |
 
 配置完成后，每次文生图成功，图片会自动：
 1. 发送给 Gallery Worker 进行 AI 视觉分析
@@ -131,7 +131,7 @@
 | `width` / `height` | number | 图片尺寸 |
 | `seed` | number | 随机种子 |
 | `enhance` | boolean | 是否开启了提示词增强 |
-| `imageHost` | string | 图床地址，如 `https://image.kont.us.ci` |
+| `imageHost` | string | 图床地址，如 `https://your-image-host.com` |
 
 ---
 
@@ -144,7 +144,7 @@ value 为 JSON，包含以下字段：
 ```json
 {
   "id": "uuid",
-  "imageUrl": "https://image.kont.us.ci/file/xxx.png",
+  "imageUrl": "https://your-image-host.com/file/xxx.png",
   "prompt": "增强后的提示词",
   "originalPrompt": "原始提示词",
   "model": "cf-flux-schnell",
