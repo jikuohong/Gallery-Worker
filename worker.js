@@ -451,6 +451,7 @@ html.dark .st-err{color:#f07050}
 (function() {
 'use strict';
 
+var NL = String.fromCharCode(10); // 换行符（避免模板字符串转义问题）
 var API_BASE = '';
 var PAGE_SIZE = 24;
 var curPage = 1, curQ = '', curItem = null, totalCount = 0;
@@ -627,7 +628,7 @@ document.getElementById('batchDesel').addEventListener('click', function() {
 document.getElementById('batchCopyLinks').addEventListener('click', function() {
   if (!selectedIds.size) { toast('请先选择图片', 'err'); return; }
   var links = allItems.filter(function(i) { return selectedIds.has(i.id); }).map(function(i) { return i.imageUrl; });
-  navigator.clipboard.writeText(links.join('\x0a')).then(function() { toast('已复制 ' + links.length + ' 条链接', 'ok'); });
+  navigator.clipboard.writeText(links.join(NL)).then(function() { toast('已复制 ' + links.length + ' 条链接', 'ok'); });
 });
 document.getElementById('batchDownload').addEventListener('click', function() {
   if (!selectedIds.size) { toast('请先选择图片', 'err'); return; }
@@ -982,7 +983,7 @@ document.getElementById('localUploadBtn').addEventListener('click', async functi
 document.getElementById('importStartBtn').addEventListener('click', async function() {
   var raw = document.getElementById('importUrls').value.trim();
   if (!raw) { toast('请先粘贴图片 URL', 'err'); return; }
-  var urls = raw.split('\x0a').map(function(u) { return u.trim(); }).filter(Boolean);
+  var urls = raw.split(NL).map(function(u) { return u.trim(); }).filter(Boolean);
   if (!urls.length) { toast('没有有效的 URL', 'err'); return; }
   var btn = document.getElementById('importStartBtn');
   var progress = document.getElementById('ipProgress'), log = document.getElementById('ipLog');
