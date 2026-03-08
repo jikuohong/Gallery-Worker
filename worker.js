@@ -1310,7 +1310,8 @@ export default {
 
       // ── GET / ───────────────────────────────────────────────────────────
       if (request.method === 'GET' && (path === '/' || path === '/gallery')) {
-        return new Response(HTML, {
+        const html = HTML.replace('YOUR_TEXT2IMG_URL', env.TEXT2IMG_URL || '#');
+        return new Response(html, {
           status: 200,
           headers: { ...CORS, 'Content-Type': 'text/html; charset=utf-8' },
         });
