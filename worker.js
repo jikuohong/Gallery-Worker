@@ -1007,7 +1007,7 @@ export default {
         const height    = parseInt(form.get('height')) || 0;
         const seed      = parseInt(form.get('seed'))   || 0;
         const enhance   = form.get('enhance') === 'true';
-        const imageHost = form.get('imageHost')      || '';
+        const imageHost = form.get('imageHost') || env.IMAGE_HOST || '';
 
         if (!file) return json({ error: '缺少图片文件' }, 400);
 
