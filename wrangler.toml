@@ -14,14 +14,14 @@ compatibility_date = "2024-09-23"
 [[d1_databases]]
 binding     = "GALLERY_DB"
 database_name = "gallery-db"
-database_id = "替换为你的-d1-database-id"   # ← 必须替换
+database_id = "5991afcf-e9a3-46ef-8f04-072aacd17973"   # ← 必须替换
 
 # ── KV 命名空间绑定（缓存 + 备份）──────────────────────────────
 # 步骤：wrangler kv:namespace create GALLERY_KV
 # 将下方 id 替换为输出的 namespace ID
 [[kv_namespaces]]
 binding = "GALLERY_KV"
-id      = "替换为你的-kv-namespace-id"       # ← 必须替换
+id      = "bc6d892cacaf48a5b9afe71caf0d6724"       # ← 必须替换
 
 # ── Workers AI 绑定 ───────────────────────────────────────────
 [ai]
@@ -37,8 +37,8 @@ binding = "AI"
 [vars]
 # PASSWORD       = "你的访问密码"               # 多个密码用逗号分隔
 # SESSION_SECRET = "随机长字符串，用于签名Cookie"
-IMAGE_HOST     = "https://image.example.com"  # 替换为你的图床地址
-TEXT2IMG_URL   = "https://your-text2img.workers.dev"
+IMAGE_HOST     = "https://image.kont.us.ci"  # 替换为你的图床地址
+TEXT2IMG_URL   = "https://text2img.kont.us.ci"
 CACHE_TTL      = "60"                          # 列表缓存秒数
 
 # ── 本地开发环境变量（.dev.vars 文件，不提交 Git）─────────────
