@@ -1,27 +1,42 @@
 /**
- * Gallery Worker — AI 图库管理
+ * Gallery Worker — AI 图库管理（改造版）
  *
- * Deploy: https://dash.cloudflare.com → Workers → Create → Paste this file
+ * ── Cloudflare 资源绑定（Worker Settings → Variables）──────────────────────
  *
- * Cloudflare KV 绑定（在 Worker Settings → Variables → KV Namespace Bindings 中配置）:
- *   绑定名称: GALLERY_KV
+ *  【D1 数据库绑定】 名称: GALLERY_DB
+ *  【KV 命名空间绑定】名称: GALLERY_KV  （双重用途：备份 + 缓存）
+ *  【AI 绑定】       名称: AI
  *
- * 环境变量（在 Worker Settings → Variables 中配置）:
- *   PASSWORD  - 访问密码，与文生图 Worker 保持一致
+ * ── 环境变量 ────────────────────────────────────────────────────────────────
  *
- * 需要替换的占位符（搜索以下字符串并替换）:
- *   YOUR_TEXT2IMG_URL   - 替换为你的文生图 Worker 地址
- *   YOUR_IMAGE_HOST_URL - 替换为你的图床地址
+ *   PASSWORD        - 访问密码（多个用逗号分隔）
+ *   SESSION_SECRET  - Cookie 签名密钥（随机字符串，务必保密）
+ *   IMAGE_HOST      - 图床地址，如 https://image.example.com
+ *   TEXT2IMG_URL    - 文生图 Worker 地址
+ *   CACHE_TTL       - 列表缓存秒数，默认 60
  *
- * API 路由:
- *   POST /gallery/ingest        接收图片+AI打标签+上传图床+存档（主流程）
- *   POST /gallery/save          保存一条图片记录（旧接口，保留兼容）
- *   GET  /gallery/search?q=xxx  搜索（按 prompt / 标签 / 模型）
- *   GET  /gallery/list?page=1   分页列表
- *   POST /gallery/import        手动导入（单张或批量）
- *   DELETE /gallery/delete?id=xxx 删除一条记录
- *   GET  /                      返回管理页面 HTML
+ * ── 首次部署步骤 ─────────────────────────────────────────────────────────────
+ *
+ *  1. wrangler d1 create gallery-db
+ *  2. 将 wrangler.toml 中的 database_id 替换为上一步输出的 ID
+ *  3. wrangler d1 execute gallery-db --file=schema.sql
+ *  4. wrangler deploy
+ *
+ * ── API 路由 ─────────────────────────────────────────────────────────────────
+ *   POST   /gallery/login          登录，获取 Session Cookie
+ *   POST   /gallery/logout         退出登录
+ *   POST   /gallery/ingest         接收图片+AI打标签+上传图床+存档
+ *   POST   /gallery/save           保存图片记录（兼容旧接口）
+ *   GET    /gallery/search?q=xxx   搜索（SQL LIKE，极快）
+ *   GET    /gallery/list?page=1    分页列表（KV 缓存）
+ *   POST   /gallery/import         批量导入
+ *   DELETE /gallery/delete?id=xxx  删除记录
+ *   GET    /                       管理页面 HTML
  */
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  前端 HTML（保留原有 UI，仅修改登录和 API 调用逻辑）
+// ═══════════════════════════════════════════════════════════════════════════
 
 const HTML = `<!DOCTYPE html>
 <html lang="zh">
@@ -275,9 +290,9 @@ html.dark .st-err{color:#f07050}
     <div class="lc-ic"><i class="fa-solid fa-images"></i></div>
     <div class="lc-title">AI 图库</div>
     <div class="lc-sub">请输入访问密码继续</div>
-    <div id="lerr" class="lerr"><i class="fa-solid fa-triangle-exclamation"></i> 密码错误，请重试</div>
+    <div id="lerr" class="lerr"><i class="fa-solid fa-triangle-exclamation"></i> <span id="lerrMsg">密码错误，请重试</span></div>
     <div style="margin-bottom:11px;text-align:left">
-      <input type="password" id="lp" placeholder="输入密码…">
+      <input type="password" id="lp" placeholder="输入密码…" autocomplete="current-password">
     </div>
     <button class="btn bp" id="lbtn" style="width:100%;height:38px">
       <i class="fa-solid fa-right-to-bracket"></i> 进入
@@ -336,6 +351,7 @@ html.dark .st-err{color:#f07050}
     </div>
     <button class="btn bg" id="selectModeBtn" style="font-size:13px"><i class="fa-regular fa-square-check"></i> 选择</button>
     <button class="btn bg" id="importBtn" style="font-size:13px"><i class="fa-solid fa-file-import"></i> 导入</button>
+    <button class="ib" id="logoutBtn" title="退出登录"><i class="fa-solid fa-right-from-bracket"></i></button>
     <button class="ib" id="themeToggle"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
   </div>
 </div>
@@ -388,7 +404,7 @@ html.dark .st-err{color:#f07050}
     <!-- URL 导入 -->
     <div id="ipUrlPane">
       <div class="ip-sub">粘贴图床直链，每行一个 URL，支持批量导入（每次最多 20 张）</div>
-      <textarea class="ip-textarea" id="importUrls" placeholder="https://image.kont.us.ci/file/abc123.jpg&#10;https://image.kont.us.ci/file/def456.png&#10;..."></textarea>
+      <textarea class="ip-textarea" id="importUrls" placeholder="https://example.com/image1.jpg&#10;https://example.com/image2.png&#10;..."></textarea>
       <div class="ip-actions">
         <button class="btn bp" id="importStartBtn"><i class="fa-solid fa-wand-magic-sparkles"></i> 开始导入 &amp; AI 分析</button>
         <button class="btn bg" id="importCloseBtn"><i class="fa-solid fa-xmark"></i> 关闭</button>
@@ -408,20 +424,19 @@ html.dark .st-err{color:#f07050}
         <div style="font-size:12px;color:var(--muted);margin-bottom:8px">
           已选择 <span id="localFileCount" style="font-weight:600;color:var(--accent)">0</span> 张图片
         </div>
-        <div id="localThumbsWrap" class="thumb-grid"></div>
+        <div class="thumb-grid" id="localThumbsWrap"></div>
       </div>
       <div class="ip-actions">
         <button class="btn bp" id="localUploadBtn" disabled><i class="fa-solid fa-wand-magic-sparkles"></i> 上传 &amp; AI 分析</button>
-        <button class="btn bg" id="localClearBtn"><i class="fa-solid fa-xmark"></i> 清空</button>
-        <button class="btn bg" id="importCloseBtn2"><i class="fa-solid fa-door-open"></i> 关闭</button>
+        <button class="btn bg" id="localClearBtn"><i class="fa-solid fa-trash"></i> 清空</button>
+        <button class="btn bg" id="importCloseBtn2"><i class="fa-solid fa-xmark"></i> 关闭</button>
       </div>
     </div>
 
-    <!-- 进度（共用） -->
-    <div class="ip-progress" id="ipProgress">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:12px;color:var(--muted)" id="ipProgressText">准备中…</span>
-        <span style="font-size:12px;font-weight:600;color:var(--accent)" id="ipProgressPct">0%</span>
+    <div id="ipProgress" class="ip-progress">
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:3px">
+        <span id="ipProgressText">处理中…</span>
+        <span id="ipProgressPct">0%</span>
       </div>
       <div class="ip-bar-wrap"><div class="ip-bar" id="ipBar" style="width:0%"></div></div>
       <div class="ip-log" id="ipLog"></div>
@@ -433,12 +448,12 @@ html.dark .st-err{color:#f07050}
 <div id="toast"></div>
 
 <script>
-(function(){
+(function() {
 'use strict';
 
 var API_BASE = '';
 var PAGE_SIZE = 24;
-var pwd = '', curPage = 1, curQ = '', totalCount = 0, curItem = null;
+var curPage = 1, curQ = '', curItem = null, totalCount = 0;
 
 // ── Theme ──────────────────────────────────────────────────────────────────
 var html = document.documentElement;
@@ -465,49 +480,105 @@ function toast(msg, type) {
   toastT = setTimeout(function() { t.classList.remove('show'); }, 4000);
 }
 
-// ── Login ──────────────────────────────────────────────────────────────────
+// ── Login（Cookie Session 版）─────────────────────────────────────────────
+// 不再在前端存储密码，登录后由服务端设置 HttpOnly Cookie
+// 所有 API 请求自动携带 Cookie，无需手动传密码
+
 var loginOv = document.getElementById('loginOv');
 var lerr    = document.getElementById('lerr');
+var lerrMsg = document.getElementById('lerrMsg');
 var lpEl    = document.getElementById('lp');
 
-var stored = sessionStorage.getItem('gallery_pwd');
-if (stored !== null) { pwd = stored; loginOv.classList.add('hidden'); loadPage(1); }
+// 页面加载时先尝试访问 API，如果返回 401 再显示登录框
+(async function checkSession() {
+  try {
+    var res = await fetch(API_BASE + '/gallery/list?page=1', { credentials: 'include' });
+    if (res.ok) {
+      loginOv.classList.add('hidden');
+      var data = await res.json();
+      totalCount = data.total || 0;
+      document.getElementById('totalBadge').textContent = '共 ' + totalCount + ' 张';
+      renderGrid(data.items || []);
+      renderPagination(data.total || 0, 1);
+    }
+    // 如果 401，登录框保持显示
+  } catch(e) { /* 保持登录框 */ }
+})();
 
 async function doLogin() {
   var p = lpEl.value.trim();
+  if (!p) return;
   lerr.classList.remove('show');
-  var res = await apiFetch('/gallery/search?q=&page=1', 'GET', p);
-  if (res.status === 401) { lerr.classList.add('show'); lpEl.focus(); return; }
-  pwd = p;
-  sessionStorage.setItem('gallery_pwd', pwd);
-  loginOv.classList.add('hidden');
-  loadPage(1);
+  var btn = document.getElementById('lbtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 验证中…';
+  try {
+    var res = await fetch(API_BASE + '/gallery/login', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: p }),
+    });
+    var data = await res.json();
+    if (res.ok && data.ok) {
+      loginOv.classList.add('hidden');
+      lpEl.value = '';
+      loadPage(1);
+    } else {
+      lerrMsg.textContent = data.error || '密码错误，请重试';
+      lerr.classList.add('show');
+      lpEl.select();
+    }
+  } catch(e) {
+    lerrMsg.textContent = '网络错误，请稍后重试';
+    lerr.classList.add('show');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> 进入';
+  }
 }
 document.getElementById('lbtn').addEventListener('click', doLogin);
 lpEl.addEventListener('keydown', function(e) { if (e.key === 'Enter') doLogin(); });
 
-// ── API helper ─────────────────────────────────────────────────────────────
-async function apiFetch(path, method, password, body) {
+// ── Logout ─────────────────────────────────────────────────────────────────
+document.getElementById('logoutBtn').addEventListener('click', async function() {
+  await fetch(API_BASE + '/gallery/logout', { method: 'POST', credentials: 'include' });
+  loginOv.classList.remove('hidden');
+  lpEl.value = '';
+  toast('已退出登录', 'inf');
+});
+
+// ── API helper（自动携带 Cookie，无需手动传密码）─────────────────────────
+async function apiFetch(path, method, body) {
   var opts = {
     method: method || 'GET',
-    headers: { 'X-Password': password !== undefined ? password : pwd },
+    credentials: 'include',
   };
-  if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
-  return fetch(API_BASE + path, opts);
+  if (body) { opts.headers = { 'Content-Type': 'application/json' }; opts.body = JSON.stringify(body); }
+  var res = await fetch(API_BASE + path, opts);
+  if (res.status === 401) {
+    loginOv.classList.remove('hidden');
+    throw new Error('未授权');
+  }
+  return res;
 }
 
 // ── Load ───────────────────────────────────────────────────────────────────
 async function loadPage(page, q) {
   if (q !== undefined) curQ = q;
   curPage = page;
-  var qs = '?page=' + page + (curQ ? '&q=' + encodeURIComponent(curQ) : '');
-  var res = await apiFetch('/gallery/search' + qs);
-  if (!res.ok) { toast('加载失败', 'err'); return; }
-  var data = await res.json();
-  totalCount = data.total || 0;
-  document.getElementById('totalBadge').textContent = '共 ' + totalCount + ' 张';
-  renderGrid(data.items || []);
-  renderPagination(data.total || 0, page);
+  var endpoint = curQ
+    ? '/gallery/search?q=' + encodeURIComponent(curQ) + '&page=' + page
+    : '/gallery/list?page=' + page;
+  try {
+    var res = await apiFetch(endpoint);
+    if (!res.ok) { toast('加载失败', 'err'); return; }
+    var data = await res.json();
+    totalCount = data.total || 0;
+    document.getElementById('totalBadge').textContent = '共 ' + totalCount + ' 张';
+    renderGrid(data.items || []);
+    renderPagination(data.total || 0, page);
+  } catch(e) { if (e.message !== '未授权') toast('加载失败', 'err'); }
 }
 
 // ── Batch ──────────────────────────────────────────────────────────────────
@@ -556,7 +627,7 @@ document.getElementById('batchDesel').addEventListener('click', function() {
 document.getElementById('batchCopyLinks').addEventListener('click', function() {
   if (!selectedIds.size) { toast('请先选择图片', 'err'); return; }
   var links = allItems.filter(function(i) { return selectedIds.has(i.id); }).map(function(i) { return i.imageUrl; });
-  navigator.clipboard.writeText(links.join('\\n')).then(function() { toast('已复制 ' + links.length + ' 条链接', 'ok'); });
+  navigator.clipboard.writeText(links.join('\n')).then(function() { toast('已复制 ' + links.length + ' 条链接', 'ok'); });
 });
 document.getElementById('batchDownload').addEventListener('click', function() {
   if (!selectedIds.size) { toast('请先选择图片', 'err'); return; }
@@ -582,7 +653,10 @@ document.getElementById('batchDelete').addEventListener('click', async function(
   if (!selectedIds.size) { toast('请先选择图片', 'err'); return; }
   if (!confirm('确认删除选中的 ' + selectedIds.size + ' 张图片记录？')) return;
   var ids = Array.from(selectedIds), ok = 0, fail = 0;
-  for (var i = 0; i < ids.length; i++) { var r = await apiFetch('/gallery/delete?id=' + ids[i], 'DELETE'); if (r.ok) ok++; else fail++; }
+  for (var i = 0; i < ids.length; i++) {
+    try { var r = await apiFetch('/gallery/delete?id=' + ids[i], 'DELETE'); if (r.ok) ok++; else fail++; }
+    catch(e) { fail++; }
+  }
   toast('已删除 ' + ok + ' 张' + (fail ? '，失败 ' + fail + ' 张' : ''), ok > 0 ? 'ok' : 'err');
   exitSelectMode(); loadPage(curPage, curQ);
 });
@@ -696,14 +770,12 @@ function applyTransform() {
 }
 function resetViewer() { lbScale = 1; lbRotate = 0; lbTx = 0; lbTy = 0; applyTransform(); }
 
-// 按钮
 document.getElementById('vbZoomIn').addEventListener('click',  function() { lbScale = Math.min(lbScale * 1.25, 8); applyTransform(); });
 document.getElementById('vbZoomOut').addEventListener('click', function() { lbScale = Math.max(lbScale / 1.25, 0.1); applyTransform(); });
 document.getElementById('vbReset').addEventListener('click',   resetViewer);
 document.getElementById('vbRotateL').addEventListener('click', function() { lbRotate -= 90; applyTransform(); });
 document.getElementById('vbRotateR').addEventListener('click', function() { lbRotate += 90; applyTransform(); });
 
-// 滚轮缩放
 lbImgWrap.addEventListener('wheel', function(e) {
   e.preventDefault();
   var factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
@@ -711,7 +783,6 @@ lbImgWrap.addEventListener('wheel', function(e) {
   applyTransform();
 }, { passive: false });
 
-// 拖拽平移
 lbImgWrap.addEventListener('mousedown', function(e) {
   if (e.button !== 0) return;
   lbDragging = true; lbImgWrap.classList.add('dragging');
@@ -729,7 +800,6 @@ window.addEventListener('mouseup', function() {
   lbDragging = false; lbImgWrap.classList.remove('dragging');
 });
 
-// 触摸捏合缩放
 var lbTouchDist = 0;
 lbImgWrap.addEventListener('touchstart', function(e) {
   if (e.touches.length === 2) {
@@ -762,7 +832,7 @@ function openLightbox(item) {
   var metaEl = document.getElementById('lbMeta'); metaEl.innerHTML = '';
   var fields = [
     { k: '模型', v: item.model || '-' }, { k: '尺寸', v: item.width && item.height ? item.width + '×' + item.height : '-' },
-    { k: '步数', v: item.num_steps || '-' }, { k: '种子', v: item.seed || '-' },
+    { k: '种子', v: item.seed || '-' },
     { k: '增强', v: item.enhance ? '已开启' : '未开启' }, { k: '时间', v: new Date(item.ts).toLocaleString('zh-CN') },
   ];
   fields.forEach(function(f) {
@@ -784,9 +854,11 @@ document.addEventListener('keydown', function(e) { if (e.key === 'Escape') lb.cl
 document.getElementById('lbDel').addEventListener('click', async function() {
   if (!curItem) return;
   if (!confirm('确认删除这张图片的记录？（图床原图不受影响）')) return;
-  var res = await apiFetch('/gallery/delete?id=' + curItem.id, 'DELETE');
-  if (res.ok) { lb.classList.remove('show'); toast('已删除', 'ok'); loadPage(curPage, curQ); }
-  else toast('删除失败', 'err');
+  try {
+    var res = await apiFetch('/gallery/delete?id=' + curItem.id, 'DELETE');
+    if (res.ok) { lb.classList.remove('show'); toast('已删除', 'ok'); loadPage(curPage, curQ); }
+    else toast('删除失败', 'err');
+  } catch(e) {}
 });
 
 // ── Search ─────────────────────────────────────────────────────────────────
@@ -880,8 +952,9 @@ document.getElementById('localUploadBtn').addEventListener('click', async functi
     ptxt.textContent = '正在上传第 ' + (i + 1) + ' / ' + total + ' 张：' + f.name;
     try {
       var form = new FormData();
-      form.append('file', f, f.name); form.append('prompt', ''); form.append('imageHost', 'https://image.kont.us.ci');/* ⚠️ 图床地址，请勿修改 */
-      var res = await fetch(API_BASE + '/gallery/ingest', { method: 'POST', headers: { 'X-Password': pwd }, body: form });
+      form.append('file', f, f.name); form.append('prompt', '');
+      // 注意：ingest 接口使用 Cookie 认证，无需手动传密码
+      var res = await fetch(API_BASE + '/gallery/ingest', { method: 'POST', credentials: 'include', body: form });
       var data = await res.json(); done++;
       if (res.ok && data.imageUrl) {
         okCount++;
@@ -909,7 +982,7 @@ document.getElementById('localUploadBtn').addEventListener('click', async functi
 document.getElementById('importStartBtn').addEventListener('click', async function() {
   var raw = document.getElementById('importUrls').value.trim();
   if (!raw) { toast('请先粘贴图片 URL', 'err'); return; }
-  var urls = raw.split('\\n').map(function(u) { return u.trim(); }).filter(Boolean);
+  var urls = raw.split('\n').map(function(u) { return u.trim(); }).filter(Boolean);
   if (!urls.length) { toast('没有有效的 URL', 'err'); return; }
   var btn = document.getElementById('importStartBtn');
   var progress = document.getElementById('ipProgress'), log = document.getElementById('ipLog');
@@ -923,7 +996,7 @@ document.getElementById('importStartBtn').addEventListener('click', async functi
     var batch = urls.slice(i, i + BATCH);
     ptxt.textContent = '正在处理第 ' + (i + 1) + '–' + Math.min(i + BATCH, total) + ' 张，共 ' + total + ' 张…';
     try {
-      var res = await apiFetch('/gallery/import', 'POST', undefined, { urls: batch });
+      var res = await apiFetch('/gallery/import', 'POST', { urls: batch });
       var data = await res.json();
       if (data.results) {
         data.results.forEach(function(r) {
@@ -956,131 +1029,341 @@ document.getElementById('importStartBtn').addEventListener('click', async functi
 </html>
 `;
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  常量
+// ═══════════════════════════════════════════════════════════════════════════
+
+const PAGE_SIZE   = 24;
+const SESSION_COOKIE = 'gallery_session';
+const SESSION_TTL    = 86400; // 24 小时（秒）
+
 const CORS = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin':  '*',
   'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, X-Password',
+  'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-const PAGE_SIZE = 24;
+// ═══════════════════════════════════════════════════════════════════════════
+//  工具函数
+// ═══════════════════════════════════════════════════════════════════════════
+
+function jsonResp(data, status = 200, extraHeaders = {}) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...CORS, 'Content-Type': 'application/json', ...extraHeaders },
+  });
+}
+
+// ── HMAC-SHA256 签名（用于 Cookie 防伪造）────────────────────────────────
+async function hmacSign(secret, data) {
+  const enc  = new TextEncoder();
+  const key  = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig  = await crypto.subtle.sign('HMAC', key, enc.encode(data));
+  return btoa(String.fromCharCode(...new Uint8Array(sig)));
+}
+
+async function hmacVerify(secret, data, sig) {
+  const expected = await hmacSign(secret, data);
+  return expected === sig;
+}
+
+// ── Session Cookie 工具 ───────────────────────────────────────────────────
+// Cookie 格式：base64(payload).signature
+// payload = { exp: <unix秒> }
+
+async function createSession(secret) {
+  const exp     = Math.floor(Date.now() / 1000) + SESSION_TTL;
+  const payload = btoa(JSON.stringify({ exp }));
+  const sig     = await hmacSign(secret, payload);
+  return `${payload}.${sig}`;
+}
+
+async function verifySession(secret, cookie) {
+  if (!cookie) return false;
+  const dot = cookie.lastIndexOf('.');
+  if (dot < 0) return false;
+  const payload = cookie.slice(0, dot);
+  const sig     = cookie.slice(dot + 1);
+  if (!(await hmacVerify(secret, payload, sig))) return false;
+  try {
+    const { exp } = JSON.parse(atob(payload));
+    return Math.floor(Date.now() / 1000) < exp;
+  } catch { return false; }
+}
+
+function getSessionFromRequest(request) {
+  const cookieHeader = request.headers.get('Cookie') || '';
+  for (const part of cookieHeader.split(';')) {
+    const [k, ...vs] = part.trim().split('=');
+    if (k.trim() === SESSION_COOKIE) return vs.join('=');
+  }
+  return null;
+}
+
+function makeSessionCookieHeader(value, maxAge) {
+  return `${SESSION_COOKIE}=${value}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}`;
+}
+
+// ── KV 缓存工具 ───────────────────────────────────────────────────────────
+async function kvCacheGet(kv, key) {
+  try {
+    const raw = await kv.get(`cache:${key}`);
+    if (!raw) return null;
+    const { data, exp } = JSON.parse(raw);
+    if (Date.now() / 1000 > exp) { kv.delete(`cache:${key}`).catch(() => {}); return null; }
+    return data;
+  } catch { return null; }
+}
+
+async function kvCacheSet(kv, key, data, ttl = 60) {
+  const exp = Math.floor(Date.now() / 1000) + ttl;
+  await kv.put(`cache:${key}`, JSON.stringify({ data, exp }), { expirationTtl: ttl + 10 });
+}
+
+async function kvCacheInvalidate(kv, pattern) {
+  // 批量清除分页缓存（只清 list 前 5 页）
+  const keys = [];
+  for (let i = 1; i <= 5; i++) keys.push(`list:${i}`);
+  if (pattern) keys.push(pattern);
+  await Promise.allSettled(keys.map(k => kv.delete(`cache:${k}`)));
+}
+
+// ── AI 视觉打标签 ─────────────────────────────────────────────────────────
+async function runAIVision(env, imgArr) {
+  let aiTags = [], aiDesc = '';
+  try {
+    if (!env.AI) return { aiTags, aiDesc };
+    const vision = await env.AI.run('@cf/llava-hf/llava-1.5-7b-hf', {
+      image: imgArr,
+      prompt: 'Describe this image briefly. List 6-10 tags for subject, style, colors, mood. Format: DESCRIPTION: <text> | TAGS: tag1, tag2, tag3',
+      max_tokens: 200,
+    });
+    const raw = (vision && vision.description) ? vision.description : '';
+    const dm  = raw.match(/DESCRIPTION:\s*(.+?)\s*\|/);
+    const tm  = raw.match(/TAGS:\s*(.+)/);
+    const engDesc = dm ? dm[1].trim() : raw.slice(0, 120);
+    const engTags = tm ? tm[1].split(',').map(t => t.trim()).filter(Boolean).slice(0, 10) : [];
+
+    const llama = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+      messages: [
+        { role: 'system', content: '将以下英文翻译成中文，只输出翻译结果，格式为两行：\n描述：xxx\n标签：标签1，标签2，标签3' },
+        { role: 'user',   content: 'DESC: ' + engDesc + '\nTAGS: ' + engTags.join(', ') },
+      ],
+      max_tokens: 200,
+    });
+    const tr  = (llama && llama.response) ? llama.response.trim() : '';
+    const tdm = tr.match(/描述[：:]\s*(.+)/);
+    const ttm = tr.match(/标签[：:]\s*(.+)/);
+    aiDesc = tdm ? tdm[1].trim() : engDesc;
+    const tagStr = ttm ? ttm[1] : engTags.join('，');
+    aiTags = tagStr.split(/[,，]/).map(t => t.trim()).filter(Boolean).slice(0, 10);
+  } catch (e) { console.error('[AI vision]', e.message); }
+  return { aiTags, aiDesc };
+}
+
+// ── 上传图片到图床 ────────────────────────────────────────────────────────
+async function uploadToImageHost(imageHost, imgBytes, contentType) {
+  const ext = contentType.includes('jpeg') || contentType.includes('jpg') ? 'jpg'
+            : contentType.includes('webp') ? 'webp' : 'png';
+  const form = new FormData();
+  form.append('file', new Blob([imgBytes], { type: contentType }), `upload.${ext}`);
+  const res = await fetch(`${imageHost}/upload`, { method: 'POST', body: form });
+  if (!res.ok) throw new Error(`图床返回 ${res.status}`);
+  const json = await res.json();
+  const src  = Array.isArray(json) ? json[0]?.src : json?.src;
+  if (!src) throw new Error('图床未返回 src');
+  return src.startsWith('http') ? src : imageHost + src;
+}
+
+// ── 保存记录到 D1 + KV 双写 ───────────────────────────────────────────────
+async function saveRecord(env, record) {
+  // 写入 D1 主库
+  await env.GALLERY_DB.prepare(`
+    INSERT OR REPLACE INTO images
+      (id, image_url, prompt, original_prompt, model, width, height, seed, enhance,
+       ai_desc, ai_tags, prompt_tags, search_text, ts, source, metadata)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+  `).bind(
+    record.id,
+    record.imageUrl,
+    record.prompt || '',
+    record.originalPrompt || record.prompt || '',
+    record.model || '',
+    record.width || 0,
+    record.height || 0,
+    record.seed || 0,
+    record.enhance ? 1 : 0,
+    record.aiDesc || '',
+    JSON.stringify(record.aiTags || []),
+    JSON.stringify(record.promptTags || []),
+    record.searchText || '',
+    record.ts,
+    record.source || 'generated',
+    JSON.stringify(record),  // 完整 JSON 备份在 metadata 字段
+  ).run();
+
+  // 异步备份到 KV（不阻塞响应）
+  const kvKey = `img:${String(record.ts).padStart(16, '0')}:${record.id.slice(0, 8)}`;
+  env.GALLERY_KV.put(kvKey, JSON.stringify(record)).catch(e => console.error('[KV backup]', e));
+}
+
+// ── 从 D1 行还原前端所需对象 ──────────────────────────────────────────────
+function rowToRecord(row) {
+  // 优先使用完整 metadata 字段，兼容旧数据
+  if (row.metadata) {
+    try { return JSON.parse(row.metadata); } catch {}
+  }
+  return {
+    id:             row.id,
+    imageUrl:       row.image_url,
+    prompt:         row.prompt,
+    originalPrompt: row.original_prompt,
+    model:          row.model,
+    width:          row.width,
+    height:         row.height,
+    seed:           row.seed,
+    enhance:        !!row.enhance,
+    aiDesc:         row.ai_desc,
+    aiTags:         JSON.parse(row.ai_tags  || '[]'),
+    promptTags:     JSON.parse(row.prompt_tags || '[]'),
+    searchText:     row.search_text,
+    ts:             row.ts,
+    source:         row.source,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Worker 主入口
+// ═══════════════════════════════════════════════════════════════════════════
 
 export default {
   async fetch(request, env) {
+
     if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
 
     const url  = new URL(request.url);
     const path = url.pathname;
 
-    function authed(req) {
+    const SECRET   = env.SESSION_SECRET || 'change-me-in-env';
+    const CACHE_TTL = parseInt(env.CACHE_TTL || '60');
+
+    // ── 身份认证（Cookie Session）─────────────────────────────────────────
+    async function isAuthed() {
       const PASSWORDS = env.PASSWORD
         ? env.PASSWORD.split(',').map(p => p.trim()).filter(Boolean)
         : [];
-      if (!PASSWORDS.length) return true;
-      const pwd = req.headers.get('x-password') || '';
-      return PASSWORDS.includes(pwd);
+      if (!PASSWORDS.length) return true; // 没设置密码则放行
+      const token = getSessionFromRequest(request);
+      return verifySession(SECRET, token);
     }
 
     function unauth() {
-      return new Response(JSON.stringify({ error: '未授权' }), {
-        status: 401, headers: { ...CORS, 'Content-Type': 'application/json' },
-      });
-    }
-
-    function json(data, status = 200) {
-      return new Response(JSON.stringify(data), {
-        status, headers: { ...CORS, 'Content-Type': 'application/json' },
-      });
+      return jsonResp({ error: '未授权，请先登录' }, 401);
     }
 
     try {
 
-      // ── POST /gallery/ingest ───────────────────────────────────────────────
+      // ── POST /gallery/login ─────────────────────────────────────────────
+      if (path === '/gallery/login' && request.method === 'POST') {
+        const PASSWORDS = env.PASSWORD
+          ? env.PASSWORD.split(',').map(p => p.trim()).filter(Boolean)
+          : [];
+
+        // 没设置密码，直接放行
+        if (!PASSWORDS.length) {
+          const token = await createSession(SECRET);
+          return jsonResp({ ok: true }, 200, {
+            'Set-Cookie': makeSessionCookieHeader(token, SESSION_TTL),
+          });
+        }
+
+        const body = await request.json().catch(() => ({}));
+        const pwd  = (body.password || '').trim();
+
+        if (!PASSWORDS.includes(pwd)) {
+          return jsonResp({ error: '密码错误' }, 401);
+        }
+
+        const token = await createSession(SECRET);
+        return jsonResp({ ok: true }, 200, {
+          'Set-Cookie': makeSessionCookieHeader(token, SESSION_TTL),
+        });
+      }
+
+      // ── POST /gallery/logout ────────────────────────────────────────────
+      if (path === '/gallery/logout' && request.method === 'POST') {
+        return jsonResp({ ok: true }, 200, {
+          'Set-Cookie': makeSessionCookieHeader('', 0),
+        });
+      }
+
+      // ── GET / ───────────────────────────────────────────────────────────
+      if (request.method === 'GET' && (path === '/' || path === '/gallery')) {
+        return new Response(HTML, {
+          status: 200,
+          headers: { ...CORS, 'Content-Type': 'text/html; charset=utf-8' },
+        });
+      }
+
+      // ── POST /gallery/ingest ────────────────────────────────────────────
       if (path === '/gallery/ingest' && request.method === 'POST') {
-        if (!authed(request)) return unauth();
+        if (!(await isAuthed())) return unauth();
 
-        const form      = await request.formData();
-        const file      = form.get('file');
-        const prompt    = form.get('prompt')         || '';
-        const origPrompt= form.get('originalPrompt') || prompt;
-        const model     = form.get('model')          || '';
-        const width     = parseInt(form.get('width'))  || 0;
-        const height    = parseInt(form.get('height')) || 0;
-        const seed      = parseInt(form.get('seed'))   || 0;
-        const enhance   = form.get('enhance') === 'true';
-        const imageHost = form.get('imageHost') || env.IMAGE_HOST || '';
+        const form       = await request.formData();
+        const file       = form.get('file');
+        const prompt     = form.get('prompt')          || '';
+        const origPrompt = form.get('originalPrompt')  || prompt;
+        const model      = form.get('model')           || '';
+        const width      = parseInt(form.get('width'))  || 0;
+        const height     = parseInt(form.get('height')) || 0;
+        const seed       = parseInt(form.get('seed'))   || 0;
+        const enhance    = form.get('enhance') === 'true';
+        const imageHost  = form.get('imageHost') || env.IMAGE_HOST || '';
 
-        if (!file) return json({ error: '缺少图片文件' }, 400);
+        if (!file)       return jsonResp({ error: '缺少图片文件' }, 400);
+        if (!imageHost)  return jsonResp({ error: '未配置 IMAGE_HOST' }, 400);
 
         const imgBytes   = await file.arrayBuffer();
         const imgArr     = [...new Uint8Array(imgBytes)];
-        const contentType= file.type || 'image/png';
+        const contentType = file.type || 'image/png';
 
-        let aiTags = [], aiDesc = '';
-        try {
-          if (env.AI) {
-            const vision = await env.AI.run('@cf/llava-hf/llava-1.5-7b-hf', {
-              image: imgArr,
-              prompt: 'Describe this image briefly. List 6-10 tags for subject, style, colors, mood. Format: DESCRIPTION: <text> | TAGS: tag1, tag2, tag3',
-              max_tokens: 200,
-            });
-            const raw = (vision && vision.description) ? vision.description : '';
-            const dm = raw.match(/DESCRIPTION:\s*(.+?)\s*\|/);
-            const tm = raw.match(/TAGS:\s*(.+)/);
-            const engDesc = dm ? dm[1].trim() : raw.slice(0, 120);
-            const engTags = tm ? tm[1].split(',').map(function(t){ return t.trim(); }).filter(Boolean).slice(0, 10) : [];
-            const translateInput = 'DESC: ' + engDesc + '\nTAGS: ' + engTags.join(', ');
-            const llama = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
-              messages: [
-                { role: 'system', content: '将以下英文翻译成中文，只输出翻译结果，格式为两行：\n描述：xxx\n标签：标签1，标签2，标签3' },
-                { role: 'user', content: translateInput },
-              ],
-              max_tokens: 200,
-            });
-            const tr = (llama && llama.response) ? llama.response.trim() : '';
-            const tdm = tr.match(/描述[：:]\s*(.+)/);
-            const ttm = tr.match(/标签[：:]\s*(.+)/);
-            aiDesc = tdm ? tdm[1].trim() : engDesc;
-            const tagStr = ttm ? ttm[1] : engTags.join('，');
-            aiTags = tagStr.split(/[,，]/).map(function(t){ return t.trim(); }).filter(Boolean).slice(0, 10);
-          }
-        } catch (e) { console.error('[ingest] AI vision failed:', e.message); }
+        // AI 视觉
+        const { aiTags, aiDesc } = await runAIVision(env, imgArr);
 
+        // 上传图床
         let imageUrl = '';
-        if (imageHost) {
-          try {
-            const uploadForm = new FormData();
-            uploadForm.append('file', new Blob([imgBytes], { type: contentType }), 'image.png');
-            const upRes = await fetch(imageHost + '/upload', { method: 'POST', body: uploadForm });
-            if (upRes.ok) {
-              const upJson = await upRes.json();
-              const src = Array.isArray(upJson) ? upJson[0]?.src : upJson?.src;
-              if (src) imageUrl = src.startsWith('http') ? src : imageHost + src;
-            }
-          } catch (e) { console.error('[ingest] imageHost upload error:', e.message); }
+        try {
+          imageUrl = await uploadToImageHost(imageHost, imgBytes, contentType);
+        } catch (e) {
+          console.error('[ingest] imageHost upload error:', e.message);
+          return jsonResp({ error: '图床上传失败：' + e.message }, 502);
         }
 
-        if (!imageUrl) return json({ error: '图床上传失败' }, 502);
-
-        const promptTags = prompt.toLowerCase().replace(/[,，。.!！?？]/g, ' ').split(/\s+/)
+        const promptTags = prompt.toLowerCase()
+          .replace(/[,，。.!！?？]/g, ' ').split(/\s+/)
           .filter(w => w.length > 2 && w.length < 20).slice(0, 8);
 
         const record = {
-          id: crypto.randomUUID(), imageUrl, prompt, originalPrompt: origPrompt,
-          model, width, height, seed, enhance, aiDesc, aiTags, promptTags,
+          id: crypto.randomUUID(), imageUrl, prompt,
+          originalPrompt: origPrompt, model, width, height, seed, enhance,
+          aiDesc, aiTags, promptTags,
           searchText: [prompt, origPrompt, model, ...aiTags, ...promptTags].join(' ').toLowerCase(),
           ts: Date.now(), source: 'generated',
         };
-        const kvKey = `img:${String(Date.now()).padStart(16, '0')}:${record.id.slice(0, 8)}`;
-        await env.GALLERY_KV.put(kvKey, JSON.stringify(record));
-        return json({ ok: true, imageUrl, aiTags, aiDesc, id: record.id });
+
+        await saveRecord(env, record);
+        await kvCacheInvalidate(env.GALLERY_KV);
+
+        return jsonResp({ ok: true, imageUrl, aiTags, aiDesc, id: record.id });
       }
 
-      // ── POST /gallery/save ─────────────────────────────────────────────────
+      // ── POST /gallery/save ──────────────────────────────────────────────
       if (path === '/gallery/save' && request.method === 'POST') {
-        if (!authed(request)) return unauth();
+        if (!(await isAuthed())) return unauth();
+
         const body = await request.json();
         const { imageUrl, prompt, model, width, height, seed, enhance, originalPrompt } = body;
-        if (!imageUrl || !prompt) return json({ error: '缺少 imageUrl 或 prompt' }, 400);
+        if (!imageUrl || !prompt) return jsonResp({ error: '缺少 imageUrl 或 prompt' }, 400);
 
         let aiTags = [], aiDesc = '';
         try {
@@ -1088,21 +1371,14 @@ export default {
             const imgRes = await fetch(imageUrl);
             if (imgRes.ok) {
               const imgArr = [...new Uint8Array(await imgRes.arrayBuffer())];
-              const vision = await env.AI.run('@cf/llava-hf/llava-1.5-7b-hf', {
-                image: imgArr,
-                prompt: '用中文描述这张图片。然后列出6-10个简洁的中文标签，描述主体、风格、色彩和氛围。格式：描述：<内容> | 标签：标签1，标签2，标签3，...',
-                max_tokens: 256,
-              });
-              const raw = vision?.description || '';
-              const descMatch = raw.match(/描述[：:]\s*(.+?)\s*\|/s) || raw.match(/DESCRIPTION:\s*(.+?)\s*\|/s);
-              const tagsMatch = raw.match(/标签[：:]\s*(.+)/s) || raw.match(/TAGS:\s*(.+)/s);
-              if (descMatch) aiDesc = descMatch[1].trim();
-              if (tagsMatch) aiTags = tagsMatch[1].split(/[,，]/).map(t => t.trim()).filter(Boolean).slice(0, 10);
+              const result = await runAIVision(env, imgArr);
+              aiTags = result.aiTags; aiDesc = result.aiDesc;
             }
           }
-        } catch (e) { console.error('AI vision failed:', e); }
+        } catch (e) { console.error('[save] AI vision failed:', e); }
 
-        const promptTags = prompt.toLowerCase().replace(/[,，。.!！?？]/g, ' ').split(/\s+/)
+        const promptTags = prompt.toLowerCase()
+          .replace(/[,，。.!！?？]/g, ' ').split(/\s+/)
           .filter(w => w.length > 2 && w.length < 20).slice(0, 8);
 
         const record = {
@@ -1113,94 +1389,115 @@ export default {
           searchText: [prompt, originalPrompt, model, ...aiTags, ...promptTags].join(' ').toLowerCase(),
           ts: Date.now(),
         };
-        const kvKey = `img:${String(Date.now()).padStart(16, '0')}:${record.id.slice(0, 8)}`;
-        await env.GALLERY_KV.put(kvKey, JSON.stringify(record));
-        return json({ ok: true, id: record.id, aiTags, aiDesc });
+
+        await saveRecord(env, record);
+        await kvCacheInvalidate(env.GALLERY_KV);
+
+        return jsonResp({ ok: true, id: record.id, aiTags, aiDesc });
       }
 
-      // ── GET /gallery/search ────────────────────────────────────────────────
+      // ── GET /gallery/list（分页，走 KV 缓存）────────────────────────────
+      if (path === '/gallery/list' && request.method === 'GET') {
+        if (!(await isAuthed())) return unauth();
+
+        const page     = Math.max(1, parseInt(url.searchParams.get('page') || '1'));
+        const cacheKey = `list:${page}`;
+
+        // 尝试读缓存
+        const cached = await kvCacheGet(env.GALLERY_KV, cacheKey);
+        if (cached) return jsonResp(cached);
+
+        const offset = (page - 1) * PAGE_SIZE;
+        const [countResult, rowsResult] = await Promise.all([
+          env.GALLERY_DB.prepare('SELECT COUNT(*) as cnt FROM images').first(),
+          env.GALLERY_DB.prepare('SELECT * FROM images ORDER BY ts DESC LIMIT ? OFFSET ?')
+            .bind(PAGE_SIZE, offset).all(),
+        ]);
+
+        const total = countResult?.cnt ?? 0;
+        const items = (rowsResult?.results || []).map(rowToRecord);
+        const payload = { total, page, items };
+
+        // 写缓存
+        await kvCacheSet(env.GALLERY_KV, cacheKey, payload, CACHE_TTL);
+
+        return jsonResp(payload);
+      }
+
+      // ── GET /gallery/search（SQL LIKE，不走缓存）─────────────────────────
       if (path === '/gallery/search' && request.method === 'GET') {
-        if (!authed(request)) return unauth();
+        if (!(await isAuthed())) return unauth();
+
         const q    = (url.searchParams.get('q') || '').toLowerCase().trim();
         const page = Math.max(1, parseInt(url.searchParams.get('page') || '1'));
-        const listed = await env.GALLERY_KV.list({ prefix: 'img:' });
-        const keys   = listed.keys.reverse();
-        if (q) {
-          const matches = [];
-          for (const k of keys) {
-            const raw = await env.GALLERY_KV.get(k.name);
-            if (!raw) continue;
-            const rec = JSON.parse(raw);
-            if (rec.searchText && rec.searchText.includes(q)) matches.push(rec);
-          }
-          const start = (page - 1) * PAGE_SIZE;
-          return json({ total: matches.length, page, items: matches.slice(start, start + PAGE_SIZE) });
+
+        if (!q) {
+          // 无关键词时走 list 逻辑（带缓存）
+          url.searchParams.set('page', String(page));
+          const newReq = new Request(request.url.replace('/gallery/search', '/gallery/list'), request);
+          return this.fetch(new Request(
+            url.origin + '/gallery/list?page=' + page,
+            { method: 'GET', headers: request.headers }
+          ), env);
         }
-        const pageKeys = keys.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-        const items = [];
-        for (const k of pageKeys) { const raw = await env.GALLERY_KV.get(k.name); if (raw) items.push(JSON.parse(raw)); }
-        return json({ total: keys.length, page, items });
+
+        const offset  = (page - 1) * PAGE_SIZE;
+        const like    = `%${q}%`;
+        const [countResult, rowsResult] = await Promise.all([
+          env.GALLERY_DB.prepare('SELECT COUNT(*) as cnt FROM images WHERE search_text LIKE ?').bind(like).first(),
+          env.GALLERY_DB.prepare('SELECT * FROM images WHERE search_text LIKE ? ORDER BY ts DESC LIMIT ? OFFSET ?')
+            .bind(like, PAGE_SIZE, offset).all(),
+        ]);
+
+        const total = countResult?.cnt ?? 0;
+        const items = (rowsResult?.results || []).map(rowToRecord);
+        return jsonResp({ total, page, items });
       }
 
-      // ── POST /gallery/import ───────────────────────────────────────────────
+      // ── POST /gallery/import ─────────────────────────────────────────────
       if (path === '/gallery/import' && request.method === 'POST') {
-        if (!authed(request)) return unauth();
-        const body = await request.json();
-        const urlList = body.urls ? body.urls : (body.imageUrl ? [body.imageUrl] : []);
-        if (!urlList.length) return json({ error: '缺少 imageUrl 或 urls' }, 400);
+        if (!(await isAuthed())) return unauth();
 
-        const results = [];
+        const body    = await request.json();
+        const urlList = body.urls ? body.urls : (body.imageUrl ? [body.imageUrl] : []);
+        if (!urlList.length) return jsonResp({ error: '缺少 imageUrl 或 urls' }, 400);
+
+        const imageHost = env.IMAGE_HOST || '';
+        const results   = [];
+
         for (const imageUrl of urlList.slice(0, 20)) {
           const trimmed = imageUrl.trim();
           if (!trimmed) continue;
-          const listed = await env.GALLERY_KV.list({ prefix: 'img:' });
-          let exists = false;
-          for (const k of listed.keys) {
-            const raw = await env.GALLERY_KV.get(k.name);
-            if (!raw) continue;
-            if (JSON.parse(raw).imageUrl === trimmed) { exists = true; break; }
-          }
+
+          // 用 D1 检查重复（一条 SQL，不再全量扫描）
+          const exists = await env.GALLERY_DB
+            .prepare('SELECT 1 FROM images WHERE image_url = ? LIMIT 1')
+            .bind(trimmed).first();
           if (exists) { results.push({ imageUrl: trimmed, status: 'skipped', reason: '已存在' }); continue; }
 
-          let aiTags = [], aiDesc = '';
+          // 下载图片
+          let imgBytes, contentType;
           try {
-            if (env.AI) {
-              const imgRes = await fetch(trimmed);
-              if (imgRes.ok) {
-                const imgArr = [...new Uint8Array(await imgRes.arrayBuffer())];
-                const vision = await env.AI.run('@cf/llava-hf/llava-1.5-7b-hf', {
-                  image: imgArr,
-                  prompt: '用中文描述这张图片。然后列出6-10个简洁的中文标签，描述主体、风格、色彩和氛围。格式：描述：<内容> | 标签：标签1，标签2，标签3，...',
-                  max_tokens: 256,
-                });
-                const raw = vision?.description || '';
-                const dm = raw.match(/DESCRIPTION:\s*(.+?)\s*\|/s);
-                const tm = raw.match(/TAGS:\s*(.+)/s);
-                if (dm) aiDesc = dm[1].trim();
-                if (tm) aiTags = tm[1].split(',').map(t => t.trim()).filter(Boolean).slice(0, 10);
-              }
-            }
-          } catch (e) { console.error('Vision failed for', trimmed, e); }
+            const imgRes = await fetch(trimmed);
+            if (!imgRes.ok) throw new Error(`HTTP ${imgRes.status}`);
+            imgBytes    = await imgRes.arrayBuffer();
+            contentType = imgRes.headers.get('content-type') || 'image/png';
+          } catch (e) {
+            results.push({ imageUrl: trimmed, status: 'error', reason: '下载失败：' + e.message });
+            continue;
+          }
 
-          // 下载图片并转存到图床
+          // AI 打标签
+          const imgArr = [...new Uint8Array(imgBytes)];
+          const { aiTags, aiDesc } = await runAIVision(env, imgArr);
+
+          // 转存到图床
           let finalUrl = trimmed;
-          const imageHost = 'https://image.kont.us.ci'; /* ⚠️ 图床地址，请勿修改 */
-          try {
-            const imgRes2 = await fetch(trimmed);
-            if (imgRes2.ok) {
-              const imgBytes = await imgRes2.arrayBuffer();
-              const ct = imgRes2.headers.get('content-type') || 'image/png';
-              const ext = ct.includes('jpeg') || ct.includes('jpg') ? 'jpg' : ct.includes('webp') ? 'webp' : 'png';
-              const uploadForm = new FormData();
-              uploadForm.append('file', new Blob([imgBytes], { type: ct }), `import.${ext}`);
-              const upRes = await fetch(imageHost + '/upload', { method: 'POST', body: uploadForm });
-              if (upRes.ok) {
-                const upJson = await upRes.json();
-                const src = Array.isArray(upJson) ? upJson[0]?.src : upJson?.src;
-                if (src) finalUrl = src.startsWith('http') ? src : imageHost + src;
-              }
-            }
-          } catch (e) { console.error('[import] imageHost upload error:', e.message); }
+          if (imageHost) {
+            try {
+              finalUrl = await uploadToImageHost(imageHost, imgBytes, contentType);
+            } catch (e) { console.error('[import] imageHost upload error:', e.message); }
+          }
 
           const record = {
             id: crypto.randomUUID(), imageUrl: finalUrl,
@@ -1210,44 +1507,53 @@ export default {
             searchText: [aiDesc, ...aiTags].join(' ').toLowerCase(),
             ts: Date.now(), source: 'manual',
           };
-          const kvKey = `img:${String(Date.now()).padStart(16, '0')}:${record.id.slice(0, 8)}`;
-          await env.GALLERY_KV.put(kvKey, JSON.stringify(record));
+
+          await saveRecord(env, record);
           results.push({ imageUrl: finalUrl, status: 'ok', id: record.id, aiTags, aiDesc });
-          if (urlList.length > 1) await new Promise(r => setTimeout(r, 300));
+
+          if (urlList.length > 1) await new Promise(r => setTimeout(r, 200));
         }
+
+        await kvCacheInvalidate(env.GALLERY_KV);
 
         const okCount   = results.filter(r => r.status === 'ok').length;
         const skipCount = results.filter(r => r.status === 'skipped').length;
-        return json({ ok: true, total: results.length, imported: okCount, skipped: skipCount, results });
+        return jsonResp({ ok: true, total: results.length, imported: okCount, skipped: skipCount, results });
       }
 
-      // ── DELETE /gallery/delete ─────────────────────────────────────────────
+      // ── DELETE /gallery/delete ───────────────────────────────────────────
       if (path === '/gallery/delete' && request.method === 'DELETE') {
-        if (!authed(request)) return unauth();
-        const id = url.searchParams.get('id');
-        if (!id) return json({ error: '缺少 id' }, 400);
-        const listed = await env.GALLERY_KV.list({ prefix: 'img:' });
-        for (const k of listed.keys) {
-          const raw = await env.GALLERY_KV.get(k.name);
-          if (!raw) continue;
-          const rec = JSON.parse(raw);
-          if (rec.id === id) { await env.GALLERY_KV.delete(k.name); return json({ ok: true }); }
-        }
-        return json({ error: '记录不存在' }, 404);
-      }
+        if (!(await isAuthed())) return unauth();
 
-      // ── GET / ──────────────────────────────────────────────────────────────
-      if (request.method === 'GET' && (path === '/' || path === '/gallery')) {
-        return new Response(HTML, {
-          status: 200,
-          headers: { ...CORS, 'content-type': 'text/html; charset=utf-8' },
-        });
+        const id = url.searchParams.get('id');
+        if (!id) return jsonResp({ error: '缺少 id' }, 400);
+
+        // D1 直接按 id 删除（O(1)，不需要全量扫描）
+        const result = await env.GALLERY_DB
+          .prepare('DELETE FROM images WHERE id = ?')
+          .bind(id).run();
+
+        if (!result.meta?.changes) return jsonResp({ error: '记录不存在' }, 404);
+
+        // 同步清理 KV 备份（异步，不阻塞）
+        env.GALLERY_KV.list({ prefix: `img:` }).then(listed => {
+          for (const k of listed.keys) {
+            if (k.name.includes(id.slice(0, 8))) {
+              env.GALLERY_KV.delete(k.name).catch(() => {});
+              break;
+            }
+          }
+        }).catch(() => {});
+
+        await kvCacheInvalidate(env.GALLERY_KV);
+        return jsonResp({ ok: true });
       }
 
       return new Response('Not Found', { status: 404 });
+
     } catch (err) {
       console.error('Gallery worker error:', err);
-      return json({ error: '服务器内部错误', details: err.message }, 500);
+      return jsonResp({ error: '服务器内部错误', details: err.message }, 500);
     }
   },
 };
