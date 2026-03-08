@@ -1,0 +1,50 @@
+# ============================================================
+#  wrangler.toml — Gallery Worker 部署配置
+# ============================================================
+
+name = "gallery-worker"
+main = "worker.js"
+compatibility_date = "2024-09-23"
+
+# ── D1 数据库绑定 ─────────────────────────────────────────────
+# 步骤：
+#   1. wrangler d1 create gallery-db
+#   2. 将下方 database_id 替换为上一步输出的 ID
+#   3. wrangler d1 execute gallery-db --file=schema.sql
+[[d1_databases]]
+binding     = "GALLERY_DB"
+database_name = "gallery-db"
+database_id = "替换为你的-d1-database-id"   # ← 必须替换
+
+# ── KV 命名空间绑定（缓存 + 备份）──────────────────────────────
+# 步骤：wrangler kv:namespace create GALLERY_KV
+# 将下方 id 替换为输出的 namespace ID
+[[kv_namespaces]]
+binding = "GALLERY_KV"
+id      = "替换为你的-kv-namespace-id"       # ← 必须替换
+
+# ── Workers AI 绑定 ───────────────────────────────────────────
+[ai]
+binding = "AI"
+
+# ── 环境变量 ─────────────────────────────────────────────────
+# 注意：PASSWORD 和 SESSION_SECRET 建议在 Cloudflare Dashboard
+#       的 Worker Settings → Variables 中以加密方式配置，
+#       不要明文写在这里提交到 Git！
+#
+# 下面仅作占位说明，实际部署时请在 Dashboard 里设置：
+#
+[vars]
+# PASSWORD       = "你的访问密码"               # 多个密码用逗号分隔
+# SESSION_SECRET = "随机长字符串，用于签名Cookie"
+IMAGE_HOST     = "https://image.example.com"  # 替换为你的图床地址
+TEXT2IMG_URL   = "https://your-text2img.workers.dev"
+CACHE_TTL      = "60"                          # 列表缓存秒数
+
+# ── 本地开发环境变量（.dev.vars 文件，不提交 Git）─────────────
+# 在项目根目录创建 .dev.vars 文件，内容：
+#
+#   PASSWORD=your_password
+#   SESSION_SECRET=your_secret_key_here
+#   IMAGE_HOST=https://image.example.com
+#
