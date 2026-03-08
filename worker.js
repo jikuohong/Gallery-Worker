@@ -333,7 +333,7 @@ html.dark .st-err{color:#f07050}
 
 <!-- TOPBAR -->
 <div class="topbar">
-  <a href="YOUR_TEXT2IMG_URL" target="_blank" class="back-link">
+  <a href="https://text2img.kont.us.ci" target="_blank" class="back-link">
     <i class="fa-solid fa-wand-magic-sparkles"></i> 文生图
   </a>
   <div class="tb-div"></div>
