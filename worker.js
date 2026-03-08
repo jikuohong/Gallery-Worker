@@ -180,9 +180,9 @@ html.dark .bd.del:hover{background:rgba(163,48,16,.2);color:#f09070;border-color
 .pg-btn:disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
 
 /* ─── LIGHTBOX ─── */
-#lb{position:fixed;inset:0;z-index:200;background:rgba(20,18,15,.85);backdrop-filter:blur(12px);display:none;align-items:flex-start;justify-content:center;padding:28px 16px;overflow-y:auto}
+#lb{position:fixed;inset:0;z-index:200;background:rgba(20,18,15,.85);backdrop-filter:blur(12px);display:none;align-items:flex-start;justify-content:center;padding:28px 16px;overflow:auto}
 #lb.show{display:flex}
-.lb-inner{background:var(--surface);border:1px solid var(--border);border-radius:12px;max-width:740px;width:100%;box-shadow:var(--shl);overflow:hidden;position:relative;margin:auto}
+.lb-inner{background:var(--surface);border:1px solid var(--border);border-radius:12px;max-width:740px;width:100%;box-shadow:var(--shl);overflow:visible;position:relative;margin:auto}
 .lb-img{width:100%;display:block;background:var(--surface2)}
 .lb-info{padding:16px 18px}
 .lb-prompt{font-size:13.5px;line-height:1.6;margin-bottom:12px;font-weight:500;color:var(--text)}
@@ -194,6 +194,14 @@ html.dark .bd.del:hover{background:rgba(163,48,16,.2);color:#f09070;border-color
 .lb-actions{display:flex;gap:7px;flex-wrap:wrap}
 .lb-close{position:absolute;top:11px;right:11px;width:30px;height:30px;border-radius:var(--r-sm);background:rgba(0,0,0,.45);border:none;color:#fff;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;transition:background var(--t)}
 .lb-close:hover{background:rgba(0,0,0,.65)}
+.lb-img-wrap{position:relative;background:var(--surface2);overflow:visible;min-height:120px;cursor:grab;user-select:none}
+.lb-img-wrap.dragging{cursor:grabbing}
+.lb-img-wrap img{display:block;width:100%;transform-origin:center center;transition:transform .05s linear;will-change:transform;pointer-events:none}
+.lb-viewer-bar{display:flex;align-items:center;justify-content:center;gap:4px;padding:7px 10px;background:var(--surface2);border-bottom:1px solid var(--border)}
+.vb-btn{width:30px;height:30px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;transition:all var(--t);flex-shrink:0}
+.vb-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+.vb-sep{width:1px;height:18px;background:var(--border);margin:0 2px}
+.vb-scale{font-size:11.5px;color:var(--muted);min-width:38px;text-align:center;font-weight:600}
 
 /* ─── LOGIN ─── */
 #loginOv{position:fixed;inset:0;z-index:100;background:rgba(20,18,15,.7);backdrop-filter:blur(16px);display:flex;align-items:center;justify-content:center}
@@ -281,7 +289,19 @@ html.dark .st-err{color:#f07050}
 <div id="lb">
   <div class="lb-inner" id="lbInner">
     <button class="lb-close" id="lbClose"><i class="fa-solid fa-xmark"></i></button>
-    <img id="lbImg" class="lb-img" src="" alt="">
+    <div class="lb-viewer-bar">
+      <button class="vb-btn" id="vbZoomIn"  title="放大"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+      <button class="vb-btn" id="vbZoomOut" title="缩小"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+      <button class="vb-btn" id="vbReset"   title="重置"><i class="fa-solid fa-expand"></i></button>
+      <div class="vb-sep"></div>
+      <span class="vb-scale" id="vbScale">100%</span>
+      <div class="vb-sep"></div>
+      <button class="vb-btn" id="vbRotateL" title="向左旋转"><i class="fa-solid fa-rotate-left"></i></button>
+      <button class="vb-btn" id="vbRotateR" title="向右旋转"><i class="fa-solid fa-rotate-right"></i></button>
+    </div>
+    <div class="lb-img-wrap" id="lbImgWrap">
+      <img id="lbImg" class="lb-img" src="" alt="">
+    </div>
     <div class="lb-info">
       <div class="lb-prompt" id="lbPrompt"></div>
       <div class="lb-tags" id="lbTags"></div>
@@ -298,7 +318,7 @@ html.dark .st-err{color:#f07050}
 
 <!-- TOPBAR -->
 <div class="topbar">
-  <a href="YOUR_TEXT2IMG_URL" target="_blank" class="back-link">
+  <a href="" target="_blank" class="back-link">
     <i class="fa-solid fa-wand-magic-sparkles"></i> 文生图
   </a>
   <div class="tb-div"></div>
@@ -664,8 +684,71 @@ function renderPagination(total, cur) {
 
 // ── Lightbox ───────────────────────────────────────────────────────────────
 var lb = document.getElementById('lb');
+var lbImg = document.getElementById('lbImg');
+var lbImgWrap = document.getElementById('lbImgWrap');
+var vbScale = document.getElementById('vbScale');
+var lbScale = 1, lbRotate = 0, lbTx = 0, lbTy = 0;
+var lbDragging = false, lbDragStartX = 0, lbDragStartY = 0, lbDragTx = 0, lbDragTy = 0;
+
+function applyTransform() {
+  lbImg.style.transform = 'translate(' + lbTx + 'px,' + lbTy + 'px) rotate(' + lbRotate + 'deg) scale(' + lbScale + ')';
+  vbScale.textContent = Math.round(lbScale * 100) + '%';
+}
+function resetViewer() { lbScale = 1; lbRotate = 0; lbTx = 0; lbTy = 0; applyTransform(); }
+
+// 按钮
+document.getElementById('vbZoomIn').addEventListener('click',  function() { lbScale = Math.min(lbScale * 1.25, 8); applyTransform(); });
+document.getElementById('vbZoomOut').addEventListener('click', function() { lbScale = Math.max(lbScale / 1.25, 0.1); applyTransform(); });
+document.getElementById('vbReset').addEventListener('click',   resetViewer);
+document.getElementById('vbRotateL').addEventListener('click', function() { lbRotate -= 90; applyTransform(); });
+document.getElementById('vbRotateR').addEventListener('click', function() { lbRotate += 90; applyTransform(); });
+
+// 滚轮缩放
+lbImgWrap.addEventListener('wheel', function(e) {
+  e.preventDefault();
+  var factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+  lbScale = Math.min(Math.max(lbScale * factor, 0.1), 8);
+  applyTransform();
+}, { passive: false });
+
+// 拖拽平移
+lbImgWrap.addEventListener('mousedown', function(e) {
+  if (e.button !== 0) return;
+  lbDragging = true; lbImgWrap.classList.add('dragging');
+  lbDragStartX = e.clientX; lbDragStartY = e.clientY;
+  lbDragTx = lbTx; lbDragTy = lbTy;
+});
+window.addEventListener('mousemove', function(e) {
+  if (!lbDragging) return;
+  lbTx = lbDragTx + (e.clientX - lbDragStartX);
+  lbTy = lbDragTy + (e.clientY - lbDragStartY);
+  applyTransform();
+});
+window.addEventListener('mouseup', function() {
+  if (!lbDragging) return;
+  lbDragging = false; lbImgWrap.classList.remove('dragging');
+});
+
+// 触摸捏合缩放
+var lbTouchDist = 0;
+lbImgWrap.addEventListener('touchstart', function(e) {
+  if (e.touches.length === 2) {
+    lbTouchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+  }
+}, { passive: true });
+lbImgWrap.addEventListener('touchmove', function(e) {
+  if (e.touches.length === 2) {
+    e.preventDefault();
+    var d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    lbScale = Math.min(Math.max(lbScale * (d / lbTouchDist), 0.1), 8);
+    lbTouchDist = d;
+    applyTransform();
+  }
+}, { passive: false });
+
 function openLightbox(item) {
   curItem = item;
+  resetViewer();
   document.getElementById('lbImg').src = item.imageUrl;
   document.getElementById('lbPrompt').textContent = item.prompt || '';
   document.getElementById('lbDl').href = item.imageUrl;
