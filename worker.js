@@ -1,11 +1,17 @@
 /**
  * Gallery Worker — AI 图库管理
  *
- * Cloudflare KV 绑定（在 Worker Settings 中配置）:
- *   KV namespace 绑定名称: GALLERY_KV
+ * Deploy: https://dash.cloudflare.com → Workers → Create → Paste this file
  *
- * 环境变量:
- *   PASSWORD  - 与主 Worker 相同的访问密码
+ * Cloudflare KV 绑定（在 Worker Settings → Variables → KV Namespace Bindings 中配置）:
+ *   绑定名称: GALLERY_KV
+ *
+ * 环境变量（在 Worker Settings → Variables 中配置）:
+ *   PASSWORD  - 访问密码，与文生图 Worker 保持一致
+ *
+ * 需要替换的占位符（搜索以下字符串并替换）:
+ *   YOUR_TEXT2IMG_URL   - 替换为你的文生图 Worker 地址
+ *   YOUR_IMAGE_HOST_URL - 替换为你的图床地址
  *
  * API 路由:
  *   POST /gallery/ingest        接收图片+AI打标签+上传图床+存档（主流程）
@@ -113,7 +119,8 @@ html.dark .bd.del:hover{background:rgba(163,48,16,.2);color:#f09070;border-color
 .bp:active{transform:translateY(0)}
 .bg{background:var(--surface);color:var(--text2);border:1px solid var(--border);box-shadow:var(--sh)}
 .bg:hover{background:var(--surface2);border-color:var(--border2)}
-.ib{width:33px;height:33px;border-radius:var(--r-sm);background:var(--surface);border:1px solid var(--border);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;transition:all var(--t);box-shadow:var(--sh)}
+.ib{width:33px;height:33px;border-radius:var(--r-sm);background:var(--surface);border:1px solid var(--border);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1;transition:all var(--t);box-shadow:var(--sh)}
+.ib i{font-size:14px;line-height:1;display:block}
 .ib:hover{background:var(--surface2);color:var(--text);border-color:var(--border2)}
 
 /* ─── GRID WRAP ─── */
@@ -291,7 +298,7 @@ html.dark .st-err{color:#f07050}
 
 <!-- TOPBAR -->
 <div class="topbar">
-  <a href="https://your-text2img.workers.dev" target="_blank" class="back-link">
+  <a href="YOUR_TEXT2IMG_URL" target="_blank" class="back-link">
     <i class="fa-solid fa-wand-magic-sparkles"></i> 文生图
   </a>
   <div class="tb-div"></div>
@@ -361,7 +368,7 @@ html.dark .st-err{color:#f07050}
     <!-- URL 导入 -->
     <div id="ipUrlPane">
       <div class="ip-sub">粘贴图床直链，每行一个 URL，支持批量导入（每次最多 20 张）</div>
-      <textarea class="ip-textarea" id="importUrls" placeholder="https://your-image-host.com/file/abc123.jpg&#10;https://your-image-host.com/file/def456.png&#10;..."></textarea>
+      <textarea class="ip-textarea" id="importUrls" placeholder="YOUR_IMAGE_HOST_URL/file/abc123.jpg&#10;YOUR_IMAGE_HOST_URL/file/def456.png&#10;..."></textarea>
       <div class="ip-actions">
         <button class="btn bp" id="importStartBtn"><i class="fa-solid fa-wand-magic-sparkles"></i> 开始导入 &amp; AI 分析</button>
         <button class="btn bg" id="importCloseBtn"><i class="fa-solid fa-xmark"></i> 关闭</button>
@@ -790,7 +797,7 @@ document.getElementById('localUploadBtn').addEventListener('click', async functi
     ptxt.textContent = '正在上传第 ' + (i + 1) + ' / ' + total + ' 张：' + f.name;
     try {
       var form = new FormData();
-      form.append('file', f, f.name); form.append('prompt', ''); form.append('imageHost', 'https://your-image-host.com');
+      form.append('file', f, f.name); form.append('prompt', ''); form.append('imageHost', 'YOUR_IMAGE_HOST_URL');
       var res = await fetch(API_BASE + '/gallery/ingest', { method: 'POST', headers: { 'X-Password': pwd }, body: form });
       var data = await res.json(); done++;
       if (res.ok && data.imageUrl) {
