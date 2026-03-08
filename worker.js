@@ -333,7 +333,7 @@ html.dark .st-err{color:#f07050}
 
 <!-- TOPBAR -->
 <div class="topbar">
-  <a href="https://text2img.kont.us.ci" target="_blank" class="back-link">
+  <a href="YOUR_TEXT2IMG_URL" target="_blank" class="back-link">
     <i class="fa-solid fa-wand-magic-sparkles"></i> 文生图
   </a>
   <div class="tb-div"></div>
@@ -1248,14 +1248,24 @@ export default {
     const SECRET   = env.SESSION_SECRET || 'change-me-in-env';
     const CACHE_TTL = parseInt(env.CACHE_TTL || '60');
 
-    // ── 身份认证（Cookie Session）─────────────────────────────────────────
+    // ── 身份认证（Cookie Session 优先，兼容旧 X-Password 头）────────────
+    // Cookie Session：浏览器登录后使用
+    // X-Password：文生图等 Worker 间调用时使用（无法携带 Cookie）
     async function isAuthed() {
       const PASSWORDS = env.PASSWORD
         ? env.PASSWORD.split(',').map(p => p.trim()).filter(Boolean)
         : [];
-      if (!PASSWORDS.length) return true; // 没设置密码则放行
+      if (!PASSWORDS.length) return true;
+
+      // 方式一：Cookie Session（浏览器）
       const token = getSessionFromRequest(request);
-      return verifySession(SECRET, token);
+      if (await verifySession(SECRET, token)) return true;
+
+      // 方式二：X-Password 头（Worker 间调用兼容）
+      const xpwd = request.headers.get('X-Password') || '';
+      if (xpwd && PASSWORDS.includes(xpwd)) return true;
+
+      return false;
     }
 
     function unauth() {
