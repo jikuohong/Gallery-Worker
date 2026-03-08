@@ -1,148 +1,173 @@
-# Gallery Worker · AI 图库
+# AI 图库 Gallery Worker
 
-基于 Cloudflare Workers + KV 的 AI 图片管理系统，配合文生图 Worker 使用，支持自动 AI 打标签、图床转存、搜索和多种浏览模式。
+基于 Cloudflare Workers + D1 + KV 的 AI 图库管理系统。
 
----
+## 项目结构
 
-## 功能一览
-
-- **自动入库**：文生图 Worker 生成图片后自动推送，无需手动操作
-- **AI 打标签**：调用 LLaVA 视觉模型分析图片，生成中文描述和标签
-- **图床转存**：图片统一上传至 Telegraph Image 图床，稳定持久
-- **URL 导入**：粘贴外链批量导入，自动下载并转存到图床
-- **本地上传**：直接上传本地图片，自动上传图床并 AI 分析
-- **全文搜索**：按提示词、AI 标签、模型名搜索
-- **多种浏览模式**：瀑布流 / 大图 / 列表 / 时间轴
-- **图片查看器**：放大、缩小、旋转、拖拽平移、滚轮缩放、移动端捏合
-- **批量操作**：多选、批量删除、批量复制链接、批量下载、导出 JSON
-
----
-
-## 部署依赖
-
-| 服务 | 说明 |
-|------|------|
-| Cloudflare Workers | 运行本 Worker |
-| Cloudflare KV | 存储图片记录（元数据）|
-| Cloudflare Workers AI | AI 打标签（LLaVA + Llama）|
-| Telegraph Image 图床 | 实际存储图片文件 |
+```
+├── worker.js                          # Worker 主代码
+├── schema.sql                         # D1 数据库建表语句
+├── wrangler.toml                      # Cloudflare 部署配置
+├── .dev.vars.example                  # 本地环境变量模板
+├── .gitignore
+└── .github/
+    └── workflows/
+        └── deploy.yml                 # GitHub Actions 自动部署
+```
 
 ---
 
-## 部署步骤
+## 首次部署完整步骤
 
-### 1. 创建 KV 命名空间
+### 第一步：在 Cloudflare 创建资源
 
-在 Cloudflare 控制台 → **Workers & Pages → KV** 中新建命名空间，记下名称（建议命名为 `GALLERY_KV`）。
+打开 [Cloudflare Dashboard](https://dash.cloudflare.com)，按以下顺序操作：
 
-### 2. 部署 Worker
+#### 1.1 创建 D1 数据库
 
-进入 **Workers & Pages → Create → Worker**，将 `gallery-worker.js` 的内容粘贴进去，保存并部署。
+进入 **Workers & Pages → D1 → Create database**
 
-### 3. 绑定 KV
+- 数据库名称填：`gallery-db`
+- 创建后记录页面上的 **Database ID**（一串 UUID）
 
-在 Worker 的 **Settings → Variables → KV Namespace Bindings** 中添加：
+#### 1.2 创建 KV 命名空间
 
-| 绑定名称 | KV 命名空间 |
-|----------|------------|
-| `GALLERY_KV` | 第 1 步创建的命名空间 |
+进入 **Workers & Pages → KV → Create a namespace**
 
-### 4. 配置环境变量
+- 名称填：`GALLERY_KV`
+- 创建后记录页面上的 **Namespace ID**（一串 UUID）
 
-在 **Settings → Variables → Environment Variables** 中添加：
+#### 1.3 初始化数据库表
 
-| 变量名 | 说明 |
-|--------|------|
-| `PASSWORD` | 访问密码，多个密码用英文逗号分隔 |
+进入刚创建的 D1 数据库 → **Console** 标签页，将 `schema.sql` 的内容粘贴进去执行，或者使用：
 
-### 5. 开启 Workers AI
-
-在 **Settings → Variables → AI Bindings** 中添加绑定，变量名填 `AI`。未绑定时图片可以正常入库，但不会生成 AI 标签和描述。
+```bash
+# 如果本地安装了 wrangler：
+wrangler d1 execute gallery-db --file=schema.sql --remote
+```
 
 ---
 
-## 与文生图 Worker 联动
+### 第二步：修改 wrangler.toml
 
-文生图 Worker 需要配置以下两个环境变量，生成图片后才会自动推送到图库：
+打开 `wrangler.toml`，替换以下两处占位符：
+
+```toml
+[[d1_databases]]
+database_id = "替换为你的-d1-database-id"   # ← 改成第一步的 Database ID
+
+[[kv_namespaces]]
+id = "替换为你的-kv-namespace-id"           # ← 改成第一步的 Namespace ID
+```
+
+同时修改你的图床地址和文生图地址：
+
+```toml
+[vars]
+IMAGE_HOST   = "https://你的图床地址"
+TEXT2IMG_URL = "https://你的文生图Worker地址"
+```
+
+---
+
+### 第三步：在 GitHub 配置 Secrets
+
+> ⚠️ 密码等敏感变量**不要写进代码**，通过 GitHub Secrets 传给 Actions。
+
+#### 3.1 获取 Cloudflare API Token
+
+进入 [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens) → **Create Token**
+
+选择模板：**Edit Cloudflare Workers**，点击 Use template → Continue → Create Token
+
+复制生成的 Token（只显示一次）。
+
+#### 3.2 获取 Account ID
+
+在 Cloudflare Dashboard 右侧边栏或任意 Workers 页面可以找到 **Account ID**。
+
+#### 3.3 在 GitHub 仓库添加 Secrets
+
+进入你的 GitHub 仓库 → **Settings → Secrets and variables → Actions → New repository secret**
+
+添加以下 3 个 Secret：
+
+| Secret 名称 | 值 |
+|------------|-----|
+| `CF_API_TOKEN` | 上面复制的 Cloudflare API Token |
+| `CF_ACCOUNT_ID` | 你的 Cloudflare Account ID |
+
+#### 3.4 在 Cloudflare 设置加密环境变量（密码等）
+
+进入 **Workers & Pages → gallery-worker → Settings → Variables**
+
+添加以下加密变量（勾选 Encrypt）：
 
 | 变量名 | 值 |
 |--------|-----|
-| `GALLERY_URL` | 本 Worker 的访问地址，如 `https://gallery.kont.us.ci` |
-| `IMAGE_HOST` | 图床地址，如 `https://image.kont.us.ci` |
+| `PASSWORD` | 你的访问密码（多个用逗号分隔） |
+| `SESSION_SECRET` | 随机长字符串，建议 32 位以上，用于签名 Cookie |
 
-配置后的完整流程：
+> 💡 生成随机 SESSION_SECRET 的方法：在浏览器控制台运行
+> `crypto.getRandomValues(new Uint8Array(32)).reduce((s,b)=>s+b.toString(16).padStart(2,'0'),'')`
 
+---
+
+### 第四步：推送代码触发部署
+
+```bash
+git add .
+git commit -m "init gallery worker"
+git push origin main
 ```
-文生图 Worker 生成图片
-    ↓
-POST /gallery/ingest（携带图片文件 + 提示词 + 参数）
-    ↓
-Gallery Worker 调用 AI 打标签
-    ↓
-图片上传至图床，获取稳定直链
-    ↓
-记录写入 KV，图片出现在图库
+
+推送后进入 GitHub 仓库的 **Actions** 标签页，可以看到部署进度。
+
+部署成功后，Worker 地址为：`https://gallery-worker.<你的子域>.workers.dev`
+
+---
+
+## 后续更新
+
+以后只需修改代码并 push，GitHub Actions 自动重新部署：
+
+```bash
+git add worker.js
+git commit -m "update worker"
+git push
 ```
 
 ---
 
-## API 路由
+## 本地开发（可选）
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `POST` | `/gallery/ingest` | 接收图片文件，AI 打标签 + 上传图床 + 存档（文生图主流程）|
-| `POST` | `/gallery/save` | 保存一条图片记录（仅 URL，兼容旧接口）|
-| `GET` | `/gallery/search?q=&page=1` | 按关键词搜索，支持分页 |
-| `GET` | `/gallery/list?page=1` | 分页列表 |
-| `POST` | `/gallery/import` | 批量 URL 导入，自动下载并转存图床 |
-| `DELETE` | `/gallery/delete?id=xxx` | 删除一条记录 |
-| `GET` | `/` | 返回管理页面 |
+```bash
+# 安装 wrangler
+npm install -g wrangler
 
-所有接口均需在请求头中携带 `X-Password: 你的密码` 进行鉴权（未设置 `PASSWORD` 变量时不鉴权）。
+# 登录 Cloudflare
+wrangler login
 
----
+# 复制本地环境变量文件
+cp .dev.vars.example .dev.vars
+# 编辑 .dev.vars 填入真实密码
 
-## 导入图片
-
-### URL 导入
-
-在图库页面点击右上角「导入」→「URL 导入」，每行粘贴一个图片直链，支持批量（每次最多 20 张）。
-
-导入流程：
-1. 检测是否已存在（按 URL 去重）
-2. 从原始链接下载图片
-3. 转存到图床，获取稳定地址
-4. AI 分析内容，生成标签
-5. 写入图库 KV
-
-### 本地上传
-
-点击「导入」→「本地上传」，支持拖拽，每次最多 10 张，单张限 10MB。
+# 本地启动（访问 http://localhost:8787）
+wrangler dev
+```
 
 ---
 
-## 图片查看器操作
+## 常见问题
 
-| 操作 | 方式 |
-|------|------|
-| 放大 / 缩小 | 工具栏按钮，或鼠标**滚轮** |
-| 向左 / 向右旋转 | 工具栏按钮，每次 90° |
-| 拖拽平移 | 图片区域**鼠标按住拖动** |
-| 捏合缩放 | 手机**双指捏合** |
-| 重置 | 工具栏 ⤢ 按钮 |
-| 关闭 | 点击遮罩或 ESC 键 |
+**Q：数据库初始化在哪里执行？**  
+A：在 Cloudflare Dashboard → D1 → 你的数据库 → Console 标签页，粘贴 schema.sql 内容执行即可。
 
----
+**Q：忘记密码怎么办？**  
+A：在 Cloudflare Dashboard → Workers → gallery-worker → Settings → Variables 里修改 `PASSWORD` 变量。
 
-## 数据说明
+**Q：KV 里的缓存什么时候更新？**  
+A：每次新增、导入或删除图片时自动清除前 5 页缓存。也可以在 Dashboard → KV → 手动删除 `cache:` 前缀的 key。
 
-- **图片文件**不存在 KV 里，实际由图床（Telegraph Image / Telegram）存储
-- KV 里只保存每张图片的元数据，包括：图床直链、提示词、模型、尺寸、seed、AI 标签、AI 描述、时间戳
-- 删除图库记录不会删除图床原图
-
----
-
-## 相关项目
-
-- [文生图 Worker](https://text2img.kont.us.ci) — 配套的 AI 文生图工具
-- [Telegraph Image 图床](https://image.kont.us.ci) — 图片文件实际存储
+**Q：如何从旧版本迁移数据？**  
+A：旧版本数据存在 KV 中（`img:` 前缀的 key）。可以写一个迁移脚本读取 KV 中的旧数据，批量调用 `/gallery/import` 接口导入到新的 D1 中。
