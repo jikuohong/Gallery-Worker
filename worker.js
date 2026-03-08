@@ -318,7 +318,7 @@ html.dark .st-err{color:#f07050}
 
 <!-- TOPBAR -->
 <div class="topbar">
-  <a href="" target="_blank" class="back-link">
+  <a href="YOUR_TEXT2IMG_URL" target="_blank" class="back-link">
     <i class="fa-solid fa-wand-magic-sparkles"></i> 文生图
   </a>
   <div class="tb-div"></div>
@@ -388,7 +388,7 @@ html.dark .st-err{color:#f07050}
     <!-- URL 导入 -->
     <div id="ipUrlPane">
       <div class="ip-sub">粘贴图床直链，每行一个 URL，支持批量导入（每次最多 20 张）</div>
-      <textarea class="ip-textarea" id="importUrls" placeholder="YOUR_IMAGE_HOST_URL/file/abc123.jpg&#10;YOUR_IMAGE_HOST_URL/file/def456.png&#10;..."></textarea>
+      <textarea class="ip-textarea" id="importUrls" placeholder="https://image.kont.us.ci/file/abc123.jpg&#10;https://image.kont.us.ci/file/def456.png&#10;..."></textarea>
       <div class="ip-actions">
         <button class="btn bp" id="importStartBtn"><i class="fa-solid fa-wand-magic-sparkles"></i> 开始导入 &amp; AI 分析</button>
         <button class="btn bg" id="importCloseBtn"><i class="fa-solid fa-xmark"></i> 关闭</button>
@@ -880,7 +880,7 @@ document.getElementById('localUploadBtn').addEventListener('click', async functi
     ptxt.textContent = '正在上传第 ' + (i + 1) + ' / ' + total + ' 张：' + f.name;
     try {
       var form = new FormData();
-      form.append('file', f, f.name); form.append('prompt', ''); form.append('imageHost', 'YOUR_IMAGE_HOST_URL');
+      form.append('file', f, f.name); form.append('prompt', ''); form.append('imageHost', 'https://image.kont.us.ci');/* ⚠️ 图床地址，请勿修改 */
       var res = await fetch(API_BASE + '/gallery/ingest', { method: 'POST', headers: { 'X-Password': pwd }, body: form });
       var data = await res.json(); done++;
       if (res.ok && data.imageUrl) {
@@ -1182,8 +1182,28 @@ export default {
             }
           } catch (e) { console.error('Vision failed for', trimmed, e); }
 
+          // 下载图片并转存到图床
+          let finalUrl = trimmed;
+          const imageHost = 'https://image.kont.us.ci'; /* ⚠️ 图床地址，请勿修改 */
+          try {
+            const imgRes2 = await fetch(trimmed);
+            if (imgRes2.ok) {
+              const imgBytes = await imgRes2.arrayBuffer();
+              const ct = imgRes2.headers.get('content-type') || 'image/png';
+              const ext = ct.includes('jpeg') || ct.includes('jpg') ? 'jpg' : ct.includes('webp') ? 'webp' : 'png';
+              const uploadForm = new FormData();
+              uploadForm.append('file', new Blob([imgBytes], { type: ct }), `import.${ext}`);
+              const upRes = await fetch(imageHost + '/upload', { method: 'POST', body: uploadForm });
+              if (upRes.ok) {
+                const upJson = await upRes.json();
+                const src = Array.isArray(upJson) ? upJson[0]?.src : upJson?.src;
+                if (src) finalUrl = src.startsWith('http') ? src : imageHost + src;
+              }
+            }
+          } catch (e) { console.error('[import] imageHost upload error:', e.message); }
+
           const record = {
-            id: crypto.randomUUID(), imageUrl: trimmed,
+            id: crypto.randomUUID(), imageUrl: finalUrl,
             prompt: aiDesc || '手动导入', originalPrompt: '手动导入',
             model: 'manual', width: 0, height: 0, seed: 0, enhance: false,
             aiDesc, aiTags, promptTags: aiTags.slice(0, 5),
@@ -1192,7 +1212,7 @@ export default {
           };
           const kvKey = `img:${String(Date.now()).padStart(16, '0')}:${record.id.slice(0, 8)}`;
           await env.GALLERY_KV.put(kvKey, JSON.stringify(record));
-          results.push({ imageUrl: trimmed, status: 'ok', id: record.id, aiTags, aiDesc });
+          results.push({ imageUrl: finalUrl, status: 'ok', id: record.id, aiTags, aiDesc });
           if (urlList.length > 1) await new Promise(r => setTimeout(r, 300));
         }
 
