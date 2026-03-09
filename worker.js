@@ -852,8 +852,12 @@ function openLightbox(item) {
     d.innerHTML = '<span class="lk">' + f.k + '</span><span class="lv" title="' + f.v + '">' + f.v + '</span>';
     metaEl.appendChild(d);
   });
+  // 先清除旧的描述段落，再插入新的
+  var oldDesc = document.getElementById('lbAiDesc');
+  if (oldDesc) oldDesc.parentNode.removeChild(oldDesc);
   if (item.aiDesc) {
     var desc = document.createElement('p');
+    desc.id = 'lbAiDesc';
     desc.style.cssText = 'font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5;padding:8px 10px;background:var(--surface2);border-radius:var(--r-sm);border:1px solid var(--border)';
     desc.textContent = '✦ ' + item.aiDesc;
     metaEl.parentNode.insertBefore(desc, metaEl.nextSibling);
