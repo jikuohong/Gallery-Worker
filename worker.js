@@ -1247,6 +1247,7 @@ async function uploadToImageHost(imageHost, imgBytes, contentType) {
             : contentType.includes('webp') ? 'webp' : 'png';
   const form = new FormData();
   form.append('file', new Blob([imgBytes], { type: contentType }), `upload.${ext}`);
+  form.append('skip_gallery', '1'); // 告知图床跳过 syncToGallery，避免重复写入
   const res = await fetch(`${imageHost}/upload`, { method: 'POST', body: form });
   if (!res.ok) throw new Error(`图床返回 ${res.status}`);
   const json = await res.json();
