@@ -387,7 +387,7 @@ html.dark .st-err{color:#f07050}
 <div class="search-bar">
   <div class="search-wrap">
     <i class="fa-solid fa-magnifying-glass" id="searchIcon"></i>
-    <input type="search" id="searchInput" placeholder="搜索提示词、标签、模型…">
+    <input type="search" id="searchInput" placeholder="          搜索提示词、标签、模型…">
   </div>
   <button class="btn bp" id="searchBtn"><i class="fa-solid fa-search"></i> 搜索</button>
 </div>
