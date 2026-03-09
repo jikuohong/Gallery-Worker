@@ -210,6 +210,12 @@ html.dark .bd.del:hover{background:rgba(163,48,16,.2);color:#f09070;border-color
 .lb-actions{display:flex;gap:7px;flex-wrap:wrap}
 .lb-close{position:absolute;top:11px;right:11px;width:30px;height:30px;border-radius:var(--r-sm);background:rgba(0,0,0,.45);border:none;color:#fff;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;transition:background var(--t)}
 .lb-close:hover{background:rgba(0,0,0,.65)}
+.lb-nav{position:fixed;top:50%;transform:translateY(-50%);width:40px;height:64px;background:rgba(0,0,0,.45);border:none;color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:210;transition:background var(--t);border-radius:var(--r-sm)}
+.lb-nav:hover{background:rgba(0,0,0,.7)}
+.lb-nav:disabled{opacity:.2;cursor:not-allowed}
+#lbPrev{left:12px}
+#lbNext{right:12px}
+.lb-counter{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);font-size:11.5px;color:rgba(255,255,255,.7);background:rgba(0,0,0,.4);padding:3px 10px;border-radius:20px;pointer-events:none}
 .lb-img-wrap{position:relative;background:var(--surface2);overflow:visible;min-height:120px;cursor:grab;user-select:none}
 .lb-img-wrap.dragging{cursor:grabbing}
 .lb-img-wrap img{display:block;width:100%;transform-origin:center center;transition:transform .05s linear;will-change:transform;pointer-events:none}
@@ -303,6 +309,9 @@ html.dark .st-err{color:#f07050}
 
 <!-- LIGHTBOX -->
 <div id="lb">
+  <button class="lb-nav" id="lbPrev" title="上一张（←）"><i class="fa-solid fa-chevron-left"></i></button>
+  <button class="lb-nav" id="lbNext" title="下一张（→）"><i class="fa-solid fa-chevron-right"></i></button>
+  <div class="lb-counter" id="lbCounter"></div>
   <div class="lb-inner" id="lbInner">
     <button class="lb-close" id="lbClose"><i class="fa-solid fa-xmark"></i></button>
     <div class="lb-viewer-bar">
@@ -849,11 +858,37 @@ function openLightbox(item) {
     desc.textContent = '✦ ' + item.aiDesc;
     metaEl.parentNode.insertBefore(desc, metaEl.nextSibling);
   }
+  // 更新翻页按钮状态和计数器
+  var idx = allItems.findIndex(function(i) { return i.id === item.id; });
+  var prevBtn = document.getElementById('lbPrev');
+  var nextBtn = document.getElementById('lbNext');
+  var counter = document.getElementById('lbCounter');
+  prevBtn.disabled = idx <= 0;
+  nextBtn.disabled = idx >= allItems.length - 1;
+  counter.textContent = (idx + 1) + ' / ' + allItems.length;
+
   lb.classList.add('show');
 }
 document.getElementById('lbClose').addEventListener('click', function() { lb.classList.remove('show'); });
 lb.addEventListener('click', function(e) { if (e.target === lb) lb.classList.remove('show'); });
-document.addEventListener('keydown', function(e) { if (e.key === 'Escape') lb.classList.remove('show'); });
+
+// 上一张 / 下一张
+function lbNavigate(dir) {
+  if (!curItem) return;
+  var idx = allItems.findIndex(function(i) { return i.id === curItem.id; });
+  var next = idx + dir;
+  if (next >= 0 && next < allItems.length) openLightbox(allItems[next]);
+}
+document.getElementById('lbPrev').addEventListener('click', function(e) { e.stopPropagation(); lbNavigate(-1); });
+document.getElementById('lbNext').addEventListener('click', function(e) { e.stopPropagation(); lbNavigate(1); });
+
+// 键盘：← → 翻页，Esc 关闭
+document.addEventListener('keydown', function(e) {
+  if (!lb.classList.contains('show')) return;
+  if (e.key === 'Escape')     { lb.classList.remove('show'); }
+  else if (e.key === 'ArrowLeft')  { lbNavigate(-1); }
+  else if (e.key === 'ArrowRight') { lbNavigate(1); }
+});
 document.getElementById('lbDel').addEventListener('click', async function() {
   if (!curItem) return;
   if (!confirm('确认删除这张图片的记录？（图床原图不受影响）')) return;
