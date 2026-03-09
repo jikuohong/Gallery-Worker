@@ -30,6 +30,7 @@
  *   GET    /gallery/search?q=xxx   搜索（SQL LIKE，极快）
  *   GET    /gallery/list?page=1    分页列表（KV 缓存）
  *   POST   /gallery/import         批量导入
+ *   POST   /gallery/retag?id=xxx   对指定图片重新 AI 打标签
  *   DELETE /gallery/delete?id=xxx  删除记录
  *   GET    /                       管理页面 HTML
  */
@@ -325,6 +326,7 @@ html.dark .st-err{color:#f07050}
         <a id="lbDl" class="btn bp" href="#" download style="text-decoration:none"><i class="fa-solid fa-download"></i> 下载</a>
         <a id="lbOpen" class="btn bg" href="#" target="_blank" style="text-decoration:none"><i class="fa-solid fa-arrow-up-right-from-square"></i> 原图</a>
         <button id="lbCopyUrl" class="btn bg"><i class="fa-solid fa-link"></i> 复制链接</button>
+        <button id="lbRetag" class="btn bg"><i class="fa-solid fa-wand-magic-sparkles"></i> AI 打标签</button>
         <button id="lbDel" class="btn bg" style="color:#9a3412;border-color:#fcd4bb"><i class="fa-solid fa-trash"></i> 删除</button>
       </div>
     </div>
@@ -860,6 +862,44 @@ document.getElementById('lbDel').addEventListener('click', async function() {
     if (res.ok) { lb.classList.remove('show'); toast('已删除', 'ok'); loadPage(curPage, curQ); }
     else toast('删除失败', 'err');
   } catch(e) {}
+});
+
+// ── AI 打标签 ───────────────────────────────────────────────────────────────
+document.getElementById('lbRetag').addEventListener('click', async function() {
+  if (!curItem) return;
+  var btn = this;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 识别中…';
+  try {
+    var res = await apiFetch('/gallery/retag?id=' + curItem.id, 'POST');
+    var data = await res.json();
+    if (res.ok && data.ok) {
+      toast('AI 打标签完成', 'ok');
+      // 更新当前 curItem 并刷新 Lightbox 显示
+      curItem.aiTags   = data.aiTags   || [];
+      curItem.aiDesc   = data.aiDesc   || '';
+      curItem.prompt   = data.prompt   || curItem.prompt;
+      curItem.searchText = data.searchText || curItem.searchText;
+      openLightbox(curItem);
+      // 刷新卡片标签
+      var card = document.querySelector('.gcard[data-id="' + curItem.id + '"]');
+      if (card) {
+        var tagsEl = card.querySelector('.gcard-tags');
+        if (tagsEl) {
+          tagsEl.innerHTML = '';
+          (curItem.aiTags || []).slice(0, 4).forEach(function(t) {
+            var s = document.createElement('span'); s.className = 'tag ai'; s.textContent = t; tagsEl.appendChild(s);
+          });
+        }
+      }
+    } else {
+      toast(data.error || 'AI 识别失败', 'err');
+    }
+  } catch(e) { toast('请求失败', 'err'); }
+  finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> AI 打标签';
+  }
 });
 
 // ── Search ─────────────────────────────────────────────────────────────────
@@ -1531,6 +1571,50 @@ export default {
         const okCount   = results.filter(r => r.status === 'ok').length;
         const skipCount = results.filter(r => r.status === 'skipped').length;
         return jsonResp({ ok: true, total: results.length, imported: okCount, skipped: skipCount, results });
+      }
+
+      // ── POST /gallery/retag ──────────────────────────────────────────────
+      if (path === '/gallery/retag' && request.method === 'POST') {
+        if (!(await isAuthed())) return unauth();
+
+        const id = url.searchParams.get('id');
+        if (!id) return jsonResp({ error: '缺少 id' }, 400);
+
+        // 从 D1 查出记录
+        const row = await env.GALLERY_DB.prepare('SELECT * FROM images WHERE id = ?').bind(id).first();
+        if (!row) return jsonResp({ error: '记录不存在' }, 404);
+
+        const imageUrl = row.image_url;
+
+        // 下载图片并运行 AI 视觉
+        let aiTags = [], aiDesc = '';
+        try {
+          const imgRes = await fetch(imageUrl);
+          if (!imgRes.ok) throw new Error('图片下载失败 ' + imgRes.status);
+          const imgArr = [...new Uint8Array(await imgRes.arrayBuffer())];
+          const result = await runAIVision(env, imgArr);
+          aiTags = result.aiTags;
+          aiDesc = result.aiDesc;
+        } catch (e) {
+          return jsonResp({ error: 'AI 识别失败：' + e.message }, 500);
+        }
+
+        // 更新 D1
+        const searchText = [row.prompt || '', row.original_prompt || '', row.model || '', ...aiTags].join(' ').toLowerCase();
+        await env.GALLERY_DB.prepare(`
+          UPDATE images SET ai_desc=?, ai_tags=?, search_text=?, metadata=? WHERE id=?
+        `).bind(
+          aiDesc,
+          JSON.stringify(aiTags),
+          searchText,
+          JSON.stringify({ ...JSON.parse(row.metadata || '{}'), aiDesc, aiTags, searchText }),
+          id
+        ).run();
+
+        // 清缓存
+        await kvCacheInvalidate(env.GALLERY_KV);
+
+        return jsonResp({ ok: true, aiTags, aiDesc, prompt: row.prompt, searchText });
       }
 
       // ── DELETE /gallery/delete ───────────────────────────────────────────
